@@ -1,32 +1,14 @@
 <template>
-	<div class="flex gap-1">
-		<NuxtLink to="/" custom v-slot="data">
-			<Button
-				:variant="!data.isActive ? 'ghost' : 'default'"
-				@click="router.push('/')"
-			>
-				Home
-			</Button>
+	<nav class="flex gap-1" aria-label="Основная навигация">
+		<NuxtLink to="/">
+			<Button as="span" :variant="route.path === '/' ? 'default' : 'ghost'">Дневник</Button>
 		</NuxtLink>
-		<NuxtLink to="/signin" custom v-slot="data">
-			<Button
-				:variant="!data.isActive ? 'ghost' : 'default'"
-				@click="router.push(data.href)"
-			>
-				Sign In
-			</Button>
+		<NuxtLink to="/signin">
+			<Button as="span" :variant="route.path === '/signin' ? 'default' : 'ghost'">Аккаунт</Button>
 		</NuxtLink>
-		<NuxtLink to="/products/add" custom v-slot="data">
-			<Button
-				:variant="!data.isActive ? 'ghost' : 'default'"
-				@click="router.push(data.href)"
-			>
-				Add Product
-			</Button>
-		</NuxtLink>
-	</div>
+	</nav>
 </template>
 
 <script lang="ts" setup>
-const router = useRouter()
+const route = useRoute()
 </script>

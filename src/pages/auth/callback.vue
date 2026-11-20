@@ -7,20 +7,28 @@
 
 <script lang="ts" setup>
 const supabase = useSupabaseClient()
-const user = useSupabaseUser()
 const error = shallowRef('')
 
 onMounted(async () => {
-	const code = new URLSearchParams(window.location.search).get('code')
+	const query = new URLSearchParams(window.location.search)
+	const authError = query.get('error_description') ?? query.get('error')
 
-	if (code) {
-		const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-		if (exchangeError) {
-			error.value = 'Не удалось завершить вход через Google.'
-			return
-		}
+	if (authError) {
+		error.value = 'Вход через Google не завершён. Попробуйте ещё раз.'
+		return
 	}
 
-	await navigateTo(user.value ? '/' : '/signin')
+	const { data, error: sessionError } = await supabase.auth.getSession()
+	if (sessionError) {
+		error.value = 'Не удалось проверить сессию. Попробуйте войти ещё раз.'
+		return
+	}
+
+	if (!data.session) {
+		error.value = 'Не удалось завершить вход через Google. Попробуйте ещё раз.'
+		return
+	}
+
+	await navigateTo('/')
 })
 </script>
