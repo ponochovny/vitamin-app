@@ -47,7 +47,7 @@ watch(
 	() => {
 		userData.value = user.value
 	},
-	{ immediate: true }
+	{ immediate: true },
 )
 
 const loading = ref(false)
@@ -88,7 +88,7 @@ const signInGoogle = async () => {
 	const { error: authError } = await supabase.auth.signInWithOAuth({
 		provider: 'google',
 		options: {
-			redirectTo: `http://localhost:3000/signin`,
+			redirectTo: `${window.location.origin}/auth/callback`,
 		},
 	})
 	setLoading(false)
