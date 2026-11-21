@@ -66,6 +66,12 @@
 				</form>
 			</DialogContent>
 		</Dialog>
+		<ProductInfoDialog
+			:open="productInfoOpen"
+			:product="selectedFoodEntry?.product ?? null"
+			:logged="selectedFoodEntry?.logged ?? null"
+			@update:open="productInfoOpen = $event"
+		/>
 
 		<section
 			v-if="loading"
@@ -235,22 +241,25 @@
 							:key="entry.id"
 							class="flex items-center gap-3 px-5 py-4 sm:px-6"
 						>
-							<span
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold"
-								:class="
-									entry.kind === 'food'
-										? 'bg-[#EDF1DC] text-[#5D6B35]'
-										: 'bg-[#E5F2F4] text-[#2F6F7A]'
-								"
-								aria-hidden="true"
+							<button
+								v-if="entry.kind === 'food' && entry.product"
+								type="button"
+								class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+								:aria-label="`Справка о продукте ${entry.title}`"
+								@click="openProductInfo(entry)"
 							>
-								{{ entry.kind === 'food' ? 'Ї' : 'Н' }}
-							</span>
-							<div class="min-w-0 flex-1">
-								<p class="truncate font-semibold">{{ entry.title }}</p>
-								<p class="mt-0.5 truncate text-sm text-muted-foreground">
-									{{ entry.detail }} · {{ entry.amount }}
-								</p>
+								<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF1DC] text-sm font-bold text-[#5D6B35]" aria-hidden="true">Ї</span>
+								<span class="min-w-0 flex-1">
+									<span class="block truncate font-semibold">{{ entry.title }}</span>
+									<span class="mt-0.5 block truncate text-sm text-muted-foreground">{{ entry.detail }} · {{ entry.amount }}</span>
+								</span>
+							</button>
+							<div v-else class="flex min-w-0 flex-1 items-center gap-3">
+								<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5F2F4] text-sm font-bold text-[#2F6F7A]" aria-hidden="true">Н</span>
+								<div class="min-w-0 flex-1">
+									<p class="truncate font-semibold">{{ entry.title }}</p>
+									<p class="mt-0.5 truncate text-sm text-muted-foreground">{{ entry.detail }} · {{ entry.amount }}</p>
+								</div>
 							</div>
 							<div class="shrink-0 text-right">
 								<p class="text-sm font-bold">
@@ -335,22 +344,10 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
+import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
+import type { FoodProductInfo, LoggedFoodInfo } from '~/src/features/dashboard/foodProduct'
 
 type PeriodKey = 'morning' | 'day' | 'evening'
-
-interface FoodProduct {
-	name: string
-	quantity: number
-	chars: {
-		unit?: 'g' | 'ml' | 'piece'
-		calories: number
-		proteins: number
-		fats: number
-		carbs: number
-		vitamins?: Record<string, number>
-		nutritionKnown?: boolean
-	}
-}
 
 interface FoodLog {
 	id: string
@@ -363,7 +360,7 @@ interface FoodLog {
 	vitamins: Record<string, number> | null
 	date: string
 	created_at: string
-	products: FoodProduct | null
+	products: FoodProductInfo | null
 }
 
 interface HistoryEntry {
@@ -377,7 +374,8 @@ interface HistoryEntry {
 	unit?: string
 	quantity?: number
 	volumeMl?: number
-	product?: FoodProduct | null
+	product?: FoodProductInfo | null
+	logged?: LoggedFoodInfo | null
 }
 
 interface MoodValue {
@@ -426,7 +424,9 @@ const refreshing = shallowRef(false)
 const error = shallowRef('')
 const entryPending = shallowRef(false)
 const editDialogOpen = shallowRef(false)
+const productInfoOpen = shallowRef(false)
 const editingEntry = shallowRef<HistoryEntry | null>(null)
+const selectedFoodEntry = shallowRef<HistoryEntry | null>(null)
 const editQuantity = shallowRef<number | ''>('')
 const editVolume = shallowRef<number | ''>('')
 const editError = shallowRef('')
@@ -516,6 +516,15 @@ const days = computed<HistoryDay[]>(() => {
 			unit,
 			quantity: Number(log.quantity),
 			product: log.products,
+			logged: {
+				quantity: Number(log.quantity),
+				nutrition: {
+					calories: Number(log.calories),
+					proteins: Number(log.proteins),
+					fats: Number(log.fats),
+					carbs: Number(log.carbs),
+				},
+			},
 		})
 		grouped.set(date, entries)
 	}
@@ -692,6 +701,12 @@ function openEdit(entry: HistoryEntry) {
 	editVolume.value = entry.volumeMl ?? ''
 	editError.value = ''
 	editDialogOpen.value = true
+}
+
+function openProductInfo(entry: HistoryEntry) {
+	if (entry.kind !== 'food' || !entry.product) return
+	selectedFoodEntry.value = entry
+	productInfoOpen.value = true
 }
 
 async function saveEntry() {

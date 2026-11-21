@@ -116,10 +116,17 @@ function selectProduct(id: string, recentQuantity?: number) {
 	if (!product) return
 	productId.value = id
 	quantity.value = recentQuantity ?? product.quantity
+	productSearch.value = ''
 }
 
 function startNewProduct() {
 	newProductName.value = productSearch.value.trim()
+	newProductUnit.value = 'piece'
+	newProductQuantity.value = 1
+	newProductCalories.value = ''
+	newProductProteins.value = ''
+	newProductFats.value = ''
+	newProductCarbs.value = ''
 	formError.value = ''
 	newProductRequestId.value = globalThis.crypto?.randomUUID?.()
 		?? `product-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -144,7 +151,7 @@ function submitFood() {
 	const selectedQuantity = Number(quantity.value)
 	if (
 		!selectedProduct.value
-		|| !matchingProducts.value.some((product) => product.id === selectedProduct.value?.id)
+		|| !props.products.some((product) => product.id === selectedProduct.value?.id)
 		|| !Number.isFinite(selectedQuantity)
 		|| selectedQuantity <= 0
 	) return

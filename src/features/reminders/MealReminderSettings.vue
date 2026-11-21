@@ -9,6 +9,7 @@ import {
 } from './schedule'
 
 const props = defineProps<{ userId: string }>()
+const authenticatedUser = useSupabaseUser()
 
 interface ReminderSettingsRow {
 	enabled: boolean
@@ -146,6 +147,11 @@ async function saveSchedule() {
 async function enableOnDevice() {
 	error.value = ''
 	notice.value = ''
+	const initiatingUserId = props.userId
+	const accountIsCurrent = () =>
+		props.userId === initiatingUserId
+		&& authenticatedUser.value?.id === initiatingUserId
+	if (!accountIsCurrent()) return
 	if (!scheduleIsValid.value) {
 		error.value = 'Спочатку задайте коректний розклад.'
 		return
@@ -169,6 +175,7 @@ async function enableOnDevice() {
 		const permission = notificationPermission.value === 'granted'
 			? 'granted'
 			: await Notification.requestPermission()
+		if (!accountIsCurrent()) return
 		notificationPermission.value = permission
 		if (permission !== 'granted') {
 			error.value = permission === 'denied'
@@ -177,15 +184,19 @@ async function enableOnDevice() {
 			return
 		}
 
-		await persistSettings(submittedSettings)
+		await persistSettings(submittedSettings, initiatingUserId)
+		if (!accountIsCurrent()) return
 		if (error.value) return
 
 		const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+		if (!accountIsCurrent()) return
 		const existingSubscription = await registration.pushManager.getSubscription()
+		if (!accountIsCurrent()) return
 		const subscription = existingSubscription ?? await registration.pushManager.subscribe({
 			userVisibleOnly: true,
 			applicationServerKey: decodeApplicationServerKey(config.public.vapidPublicKey),
 		})
+		if (!accountIsCurrent()) return
 		const serialized = subscription.toJSON()
 		const endpoint = serialized.endpoint
 		const auth = serialized.keys?.auth
@@ -194,13 +205,15 @@ async function enableOnDevice() {
 			throw new Error('Браузер повернув неповну push-підписку.')
 		}
 
+		if (!accountIsCurrent()) return
 		const { error: subscriptionError } = await supabase.functions.invoke(
 			'register-push-subscription',
 			{ body: { endpoint, auth, p256dh } },
 		)
+		if (!accountIsCurrent()) return
 		if (subscriptionError) throw subscriptionError
 
-		if (!await persistSettings({ ...submittedSettings, enabled: true })) return
+		if (!await persistSettings({ ...submittedSettings, enabled: true }, initiatingUserId)) return
 		subscribedOnDevice.value = true
 		enabledForAccount.value = true
 		notice.value = 'Нагадування увімкнено на цьому пристрої.'
@@ -299,8 +312,15 @@ function captureSubmittedSettings(enabled: boolean): ReminderSettingsRow {
 	}
 }
 
-async function persistSettings(settings: ReminderSettingsRow): Promise<boolean> {
+async function persistSettings(
+	settings: ReminderSettingsRow,
+	expectedUserId = props.userId,
+): Promise<boolean> {
 	const userId = props.userId
+	if (
+		userId !== expectedUserId
+		|| authenticatedUser.value?.id !== expectedUserId
+	) return false
 	const { error: saveError } = await supabase
 		.from('meal_reminder_settings')
 		.upsert({
@@ -313,7 +333,11 @@ async function persistSettings(settings: ReminderSettingsRow): Promise<boolean> 
 			updated_at: new Date().toISOString(),
 		}, { onConflict: 'user_id' })
 
-	if (props.userId !== userId) return false
+	if (
+		props.userId !== userId
+		|| props.userId !== expectedUserId
+		|| authenticatedUser.value?.id !== expectedUserId
+	) return false
 
 	if (saveError) {
 		error.value = 'Не вдалося зберегти розклад нагадувань.'

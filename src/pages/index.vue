@@ -1,17 +1,16 @@
 <template>
 	<main class="pb-10 pt-6 sm:pt-8">
-		<header class="mb-5 flex items-end justify-between gap-4 sm:mb-7">
-			<div>
-				<p class="mb-1 text-sm font-medium text-muted-foreground">
-					{{ todayLabel }}
-				</p>
-				<h1
-					class="text-[2rem] leading-none font-bold tracking-[-0.035em] sm:text-[2.5rem]"
-				>
-					Мій щоденник
-				</h1>
-			</div>
+		<header class="mb-5 flex items-center justify-start gap-4 sm:mb-7">
 			<div class="flex shrink-0 items-center gap-2">
+				<Button
+					type="button"
+					class="h-12 shrink-0 rounded-full bg-primary px-4 text-[15px] font-semibold shadow-[0_10px_24px_rgba(36,107,79,0.18)] sm:px-5"
+					:aria-haspopup="userId ? 'dialog' : undefined"
+					@click="openQuickLog"
+				>
+					<span class="mr-1 text-xl leading-none">+</span>
+					Додати запис
+				</Button>
 				<Button
 					v-if="userId"
 					type="button"
@@ -25,15 +24,6 @@
 					<span :class="{ 'animate-spin': refreshing }" aria-hidden="true"
 						>↻</span
 					>
-				</Button>
-				<Button
-					type="button"
-					class="h-12 shrink-0 rounded-full bg-primary px-4 text-[15px] font-semibold shadow-[0_10px_24px_rgba(36,107,79,0.18)] sm:px-5"
-					:aria-haspopup="userId ? 'dialog' : undefined"
-					@click="openQuickLog"
-				>
-					<span class="mr-1 text-xl leading-none">+</span>
-					Додати запис
 				</Button>
 			</div>
 		</header>
@@ -76,6 +66,12 @@
 				/>
 			</DialogContent>
 		</Dialog>
+		<ProductInfoDialog
+			:open="productInfoOpen"
+			:product="selectedFoodRecord?.product ?? null"
+			:logged="selectedFoodRecord?.logged ?? null"
+			@update:open="productInfoOpen = $event"
+		/>
 		<Dialog v-model:open="moodDialogOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
 				<DialogHeader v-if="selectedWellbeingPeriod">
@@ -206,12 +202,12 @@
 				<div class="flex items-start justify-between gap-4">
 					<div>
 						<p class="text-sm font-medium text-white/70">{{ todayLabel }}</p>
-						<h2
+						<h1
 							id="goal-heading"
 							class="mt-1 text-2xl font-bold tracking-[-0.03em] sm:text-[2rem]"
 						>
 							Мета на сьогодні
-						</h2>
+						</h1>
 					</div>
 					<button
 						type="button"
@@ -231,7 +227,13 @@
 					>
 						<div
 							class="goal-ring goal-ring--large"
-							:style="ringStyle(nutrition.nutritionUnknown ? 0 : progress(nutrition.calories, targets.calories))"
+							:style="
+								ringStyle(
+									nutrition.nutritionUnknown
+										? 0
+										: progress(nutrition.calories, targets.calories),
+								)
+							"
 							role="progressbar"
 							:aria-valuenow="
 								nutrition.nutritionUnknown
@@ -247,14 +249,22 @@
 							"
 						>
 							<span class="goal-ring__content">
-								<strong>{{ nutrition.nutritionUnknown ? '—' : formatNumber(nutrition.calories) }}</strong>
+								<strong>{{
+									nutrition.nutritionUnknown
+										? '—'
+										: formatNumber(nutrition.calories)
+								}}</strong>
 								<small>ккал</small>
 							</span>
 						</div>
 						<div>
 							<p class="text-sm font-semibold text-white/75">Калорії</p>
 							<p class="mt-2 text-base font-bold leading-tight">
-								{{ nutrition.nutritionUnknown ? 'Пищевая ценность не указана' : `з ${formatNumber(targets.calories)} ккал` }}
+								{{
+									nutrition.nutritionUnknown
+										? 'Пищевая ценность не указана'
+										: `з ${formatNumber(targets.calories)} ккал`
+								}}
 							</p>
 							<p class="mt-1 text-xs text-white/65">
 								{{
@@ -275,13 +285,19 @@
 							<div
 								class="goal-ring goal-ring--small"
 								:style="
-									ringStyle(nutrition.nutritionUnknown ? 0 : progress(nutrition[macro.key], targets[macro.key]))
+									ringStyle(
+										nutrition.nutritionUnknown
+											? 0
+											: progress(nutrition[macro.key], targets[macro.key]),
+									)
 								"
 								role="progressbar"
 								:aria-valuenow="
 									nutrition.nutritionUnknown
 										? 0
-										: Math.round(progress(nutrition[macro.key], targets[macro.key]))
+										: Math.round(
+												progress(nutrition[macro.key], targets[macro.key]),
+											)
 								"
 								aria-valuemin="0"
 								aria-valuemax="100"
@@ -292,7 +308,11 @@
 								"
 							>
 								<span class="goal-ring__content">
-									<strong>{{ nutrition.nutritionUnknown ? '—' : formatNumber(nutrition[macro.key]) }}</strong>
+									<strong>{{
+										nutrition.nutritionUnknown
+											? '—'
+											: formatNumber(nutrition[macro.key])
+									}}</strong>
 									<small>г</small>
 								</span>
 							</div>
@@ -458,40 +478,66 @@
 						<li
 							v-for="record in records"
 							:key="record.id"
-							class="flex items-center gap-3 px-5 py-4 sm:px-6"
+							class="px-5 py-4 sm:px-6"
 						>
-							<span
-								class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] text-lg font-bold"
-								:class="
-									record.kind === 'food'
-										? 'bg-[#EDF1DC] text-[#5D6B35]'
-										: 'bg-[#E5F2F4] text-[#2F6F7A]'
-								"
-								aria-hidden="true"
+							<button
+								v-if="record.kind === 'food' && record.product"
+								type="button"
+								class="flex w-full cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+								:aria-label="`Справка о продукте ${record.title}`"
+								@click="openProductInfo(record)"
 							>
-								{{ record.kind === 'food' ? 'Ї' : 'Н' }}
-							</span>
-							<div class="min-w-0 flex-1">
-								<p class="truncate font-semibold">{{ record.title }}</p>
-								<p class="mt-0.5 truncate text-sm text-muted-foreground">
-									{{ record.detail }}
-								</p>
-							</div>
-							<div class="shrink-0 text-right">
-								<time
-									:datetime="record.createdAt"
-									class="block text-xs text-muted-foreground"
-									>{{ formatLocalHour(record.createdAt) }}</time
+								<span
+									class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-[#EDF1DC] text-lg font-bold text-[#5D6B35] select-none"
+									aria-hidden="true"
+									>Ї</span
 								>
-								<p class="mt-1 text-sm font-bold">
-									{{
-										record.kind === 'food'
-											? record.nutritionKnown
+								<span class="min-w-0 flex-1">
+									<span class="block truncate font-semibold">{{
+										record.title
+									}}</span>
+									<span
+										class="mt-0.5 block truncate text-sm text-muted-foreground"
+										>{{ record.detail }}</span
+									>
+								</span>
+								<span class="shrink-0 text-right">
+									<time
+										:datetime="record.createdAt"
+										class="block text-xs text-muted-foreground"
+										>{{ formatLocalHour(record.createdAt) }}</time
+									>
+									<span class="mt-1 block text-sm font-bold">
+										{{
+											record.nutritionKnown
 												? `${formatNumber(record.calories)} ккал`
 												: 'Состав не указан'
-											: `${formatVolume(record.volumeMl)} мл`
-									}}
-								</p>
+										}}
+									</span>
+								</span>
+							</button>
+							<div v-else class="flex items-center gap-3">
+								<span
+									class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-[#E5F2F4] text-lg font-bold text-[#2F6F7A] select-none"
+									aria-hidden="true"
+									>Н</span
+								>
+								<div class="min-w-0 flex-1">
+									<p class="truncate font-semibold">{{ record.title }}</p>
+									<p class="mt-0.5 truncate text-sm text-muted-foreground">
+										{{ record.detail }}
+									</p>
+								</div>
+								<div class="shrink-0 text-right">
+									<time
+										:datetime="record.createdAt"
+										class="block text-xs text-muted-foreground"
+										>{{ formatLocalHour(record.createdAt) }}</time
+									>
+									<p class="mt-1 text-sm font-bold">
+										{{ formatVolume(record.volumeMl) }} мл
+									</p>
+								</div>
 							</div>
 						</li>
 					</ul>
@@ -507,7 +553,12 @@ import { toast } from 'vue-sonner'
 import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
+import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
 import { getRecentFoods } from '~/src/features/dashboard/diary'
+import type {
+	FoodProductInfo,
+	LoggedFoodInfo,
+} from '~/src/features/dashboard/foodProduct'
 import {
 	Dialog,
 	DialogContent,
@@ -548,10 +599,7 @@ interface FoodLog {
 	fats: number
 	carbs: number
 	created_at: string
-	products: {
-		name: string
-		chars: { unit?: 'g' | 'ml' | 'piece'; nutritionKnown?: boolean }
-	} | null
+	products: FoodProductInfo | null
 }
 
 interface DrinkLog {
@@ -575,6 +623,8 @@ interface DiaryRecord {
 	volumeMl: number
 	nutritionKnown: boolean
 	createdAt: string
+	product: FoodProductInfo | null
+	logged: LoggedFoodInfo | null
 }
 
 interface NewFoodEntry {
@@ -582,7 +632,12 @@ interface NewFoodEntry {
 	unit: 'g' | 'ml' | 'piece'
 	referenceQuantity: number
 	quantity: number
-	nutrition: { calories: number; proteins: number; fats: number; carbs: number } | null
+	nutrition: {
+		calories: number
+		proteins: number
+		fats: number
+		carbs: number
+	} | null
 	idempotencyKey: string
 }
 
@@ -620,6 +675,8 @@ const targetPending = shallowRef(false)
 const quickLogOpen = shallowRef(false)
 const targetsOpen = shallowRef(false)
 const moodDialogOpen = shallowRef(false)
+const productInfoOpen = shallowRef(false)
+const selectedFoodRecord = shallowRef<DiaryRecord | null>(null)
 const selectedMoodPeriod = shallowRef<WellbeingPeriodKey | null>(null)
 const error = shallowRef('')
 const notice = shallowRef('')
@@ -635,7 +692,10 @@ const dashboardCache = useState<Record<string, DashboardSnapshot>>(
 	'dashboard-cache',
 	() => ({}),
 )
-const historyCache = useState<Record<string, unknown>>('history-cache', () => ({}))
+const historyCache = useState<Record<string, unknown>>(
+	'history-cache',
+	() => ({}),
+)
 
 watch(error, (message) => {
 	if (message) {
@@ -712,13 +772,24 @@ const records = computed<DiaryRecord[]>(() =>
 			id: entry.id,
 			kind: 'food' as const,
 			title: entry.products?.name ?? 'Продукт',
-			detail: entry.products?.chars.nutritionKnown === false
-				? `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · Пищевая ценность не указана`
-				: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г белка`,
+			detail:
+				entry.products?.chars.nutritionKnown === false
+					? `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · Пищевая ценность не указана`
+					: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г белка`,
 			calories: Number(entry.calories),
 			volumeMl: 0,
 			nutritionKnown: entry.products?.chars.nutritionKnown !== false,
 			createdAt: entry.created_at,
+			product: entry.products,
+			logged: {
+				quantity: Number(entry.quantity),
+				nutrition: {
+					calories: Number(entry.calories),
+					proteins: Number(entry.proteins),
+					fats: Number(entry.fats),
+					carbs: Number(entry.carbs),
+				},
+			},
 		})),
 		...drinkLogs.value.map((drink) => ({
 			id: drink.id,
@@ -729,6 +800,8 @@ const records = computed<DiaryRecord[]>(() =>
 			volumeMl: Number(drink.volume_ml),
 			nutritionKnown: true,
 			createdAt: drink.created_at,
+			product: null,
+			logged: null,
 		})),
 	].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
 )
@@ -773,6 +846,12 @@ function openTargets() {
 	if (!userId.value) return
 	quickLogOpen.value = false
 	targetsOpen.value = true
+}
+
+function openProductInfo(record: DiaryRecord) {
+	if (record.kind !== 'food' || !record.product) return
+	selectedFoodRecord.value = record
+	productInfoOpen.value = true
 }
 
 function openMoodPicker(period: WellbeingPeriodKey) {
@@ -928,7 +1007,7 @@ async function loadDayEntries(id: string): Promise<string | null> {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(name, chars)',
+				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(name, quantity, chars)',
 			)
 			.eq('user_id', id)
 			.eq('date', today)
@@ -1044,13 +1123,15 @@ async function createAndLogFood(entry: NewFoodEntry) {
 
 	const normalizedName = entry.name.trim().toLocaleLowerCase('uk-UA')
 	const existingProduct = products.value.find(
-		(product) => product.name.trim().toLocaleLowerCase('uk-UA') === normalizedName,
+		(product) =>
+			product.name.trim().toLocaleLowerCase('uk-UA') === normalizedName,
 	)
 	if (
-		existingProduct
-		&& existingProduct.idempotencyKey !== entry.idempotencyKey
+		existingProduct &&
+		existingProduct.idempotencyKey !== entry.idempotencyKey
 	) {
-		error.value = 'Продукт с таким названием уже есть в списке. Найдите его и выберите для записи.'
+		error.value =
+			'Продукт с таким названием уже есть в списке. Найдите его и выберите для записи.'
 		return
 	}
 
@@ -1070,13 +1151,16 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	}
 	let { data: createdProduct, error: productError } = await supabase
 		.from('products')
-		.upsert({
-			user_id: id,
-			name: entry.name.trim(),
-			quantity: entry.referenceQuantity,
-			chars,
-			idempotency_key: entry.idempotencyKey,
-		}, { onConflict: 'idempotency_key' })
+		.upsert(
+			{
+				user_id: id,
+				name: entry.name.trim(),
+				quantity: entry.referenceQuantity,
+				chars,
+				idempotency_key: entry.idempotencyKey,
+			},
+			{ onConflict: 'idempotency_key' },
+		)
 		.select('id, name, quantity, chars, idempotency_key')
 		.single()
 
@@ -1089,7 +1173,8 @@ async function createAndLogFood(entry: NewFoodEntry) {
 			.maybeSingle()
 		if (recovered.error || !recovered.data) {
 			savePending.value = false
-			error.value = 'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+			error.value =
+				'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
 			return
 		}
 		createdProduct = recovered.data
@@ -1097,7 +1182,8 @@ async function createAndLogFood(entry: NewFoodEntry) {
 
 	if (!createdProduct) {
 		savePending.value = false
-		error.value = 'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+		error.value =
+			'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
 		return
 	}
 
@@ -1117,21 +1203,25 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	const values = entry.nutrition
 		? scaleNutrition(entry.nutrition, entry.quantity, entry.referenceQuantity)
 		: { calories: 0, proteins: 0, fats: 0, carbs: 0 }
-	const { error: logError } = await supabase.from('logs').upsert({
-		user_id: id,
-		product_id: product.id,
-		date: getLocalDate(),
-		quantity: entry.quantity,
-		calories: values.calories,
-		proteins: values.proteins,
-		fats: values.fats,
-		carbs: values.carbs,
-		vitamins: {},
-		idempotency_key: entry.idempotencyKey,
-	}, { onConflict: 'idempotency_key' })
+	const { error: logError } = await supabase.from('logs').upsert(
+		{
+			user_id: id,
+			product_id: product.id,
+			date: getLocalDate(),
+			quantity: entry.quantity,
+			calories: values.calories,
+			proteins: values.proteins,
+			fats: values.fats,
+			carbs: values.carbs,
+			vitamins: {},
+			idempotency_key: entry.idempotencyKey,
+		},
+		{ onConflict: 'idempotency_key' },
+	)
 	savePending.value = false
 	if (logError) {
-		error.value = 'Блюдо сохранено в списке, но запись о порции не добавлена. Найдите блюдо в списке и повторите запись.'
+		error.value =
+			'Блюдо сохранено в списке, но запись о порции не добавлена. Найдите блюдо в списке и повторите запись.'
 		return
 	}
 
