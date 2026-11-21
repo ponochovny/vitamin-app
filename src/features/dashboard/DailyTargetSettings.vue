@@ -20,9 +20,9 @@ const draft = reactive<DailyTargets>({ ...props.targets })
 const error = shallowRef('')
 
 const presets = [
-	{ id: 'light' as const, title: 'Спокойный', summary: '1800 ккал · 1,8 л напитков' },
-	{ id: 'balanced' as const, title: 'Сбалансированный', summary: '2000 ккал · 2 л напитков' },
-	{ id: 'active' as const, title: 'Активный', summary: '2400 ккал · 2,5 л напитков' },
+	{ id: 'light' as const, title: 'Спокойный', summary: '1800 ккал · 1,8 л воды' },
+	{ id: 'balanced' as const, title: 'Сбалансированный', summary: '2000 ккал · 2 л воды' },
+	{ id: 'active' as const, title: 'Активный', summary: '2400 ккал · 2,5 л воды' },
 ]
 
 const fields: Array<{ key: keyof DailyTargets; label: string; unit: string }> = [
@@ -30,7 +30,7 @@ const fields: Array<{ key: keyof DailyTargets; label: string; unit: string }> = 
 	{ key: 'proteins', label: 'Белки', unit: 'г' },
 	{ key: 'fats', label: 'Жиры', unit: 'г' },
 	{ key: 'carbs', label: 'Углеводы', unit: 'г' },
-	{ key: 'beveragesMl', label: 'Объём напитков', unit: 'мл' },
+	{ key: 'beveragesMl', label: 'Цель чистой воды', unit: 'мл' },
 ]
 
 function choosePreset(preset: Exclude<TargetPreset, 'custom'>) {

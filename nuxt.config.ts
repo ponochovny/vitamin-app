@@ -32,7 +32,7 @@ export default defineNuxtConfig({
 			login: '/signin',
 			callback: '/auth/callback',
 			include: undefined,
-			exclude: [],
+			exclude: ['/', '/signin', '/auth/callback', '/history', '/about'],
 			cookieRedirect: false,
 		},
 	},

@@ -182,7 +182,7 @@ function submitDrink() {
 				<Input v-model="volumeMl" type="number" min="1" step="1" required />
 			</label>
 			<p class="text-sm text-muted-foreground">
-				В общий объём напитков записываются вода, кофе и чай. Чистая вода учитывается отдельно.
+				В цель засчитывается только вода. Чай, кофе и другие напитки останутся в дневнике, но не увеличат счётчик воды.
 			</p>
 			<Button type="submit" class="w-full" :disabled="pending">
 				{{ pending ? 'Сохраняю...' : `Записать ${drinkLabel}` }}
