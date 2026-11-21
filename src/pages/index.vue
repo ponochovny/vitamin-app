@@ -50,8 +50,6 @@
 					v-if="userId"
 					:products="products"
 					:pending="savePending"
-					:error-message="error"
-					:notice="notice"
 					@food="logFood"
 					@drink="logDrink"
 				/>
@@ -71,27 +69,10 @@
 					:targets="targets"
 					:preset="targetPreset"
 					:pending="targetPending"
-					:error-message="error"
-					:notice="notice"
 					@save="saveTargets"
 				/>
 			</DialogContent>
 		</Dialog>
-
-		<p
-			v-if="error"
-			role="alert"
-			class="mb-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
-		>
-			{{ error }}
-		</p>
-		<p
-			v-if="notice"
-			role="status"
-			class="mb-4 rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm text-primary"
-		>
-			{{ notice }}
-		</p>
 
 		<section
 			v-if="loading"
@@ -577,6 +558,7 @@
 
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
@@ -681,6 +663,18 @@ const dashboardCache = useState<Record<string, DashboardSnapshot>>(
 	'dashboard-cache',
 	() => ({}),
 )
+
+watch(error, (message) => {
+	if (message) {
+		toast.error(message, { duration: 4000 })
+	}
+})
+
+watch(notice, (message) => {
+	if (message) {
+		toast.success(message, { duration: 3000 })
+	}
+})
 
 const macros: Array<{ key: 'proteins' | 'fats' | 'carbs'; label: string }> = [
 	{ key: 'proteins', label: 'Білки' },

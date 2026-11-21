@@ -18,8 +18,6 @@ interface Product {
 const props = defineProps<{
 	products: Product[]
 	pending: boolean
-	errorMessage: string
-	notice: string
 }>()
 
 const emit = defineEmits<{
@@ -93,10 +91,6 @@ function submitDrink() {
 
 <template>
 	<section class="space-y-4" aria-label="Быстрая запись">
-		<div class="space-y-2">
-			<p v-if="errorMessage" role="alert" class="text-sm text-red-600">{{ errorMessage }}</p>
-			<p v-if="notice" role="status" class="text-sm text-green-700">{{ notice }}</p>
-		</div>
 		<div class="grid grid-cols-2 gap-2">
 			<button
 				type="button"

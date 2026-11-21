@@ -3,10 +3,12 @@
 		<Nav />
 
 		<NuxtPage />
+		<Sonner />
 	</div>
 </template>
 
 <script lang="ts" setup>
+import { Sonner } from './src/shared/ui/sonner'
 import Nav from './src/widgets/Nav.vue'
 
 useHead({

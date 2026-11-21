@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { reactive, shallowRef } from 'vue'
+import { reactive, shallowRef, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import type { DailyTargets, TargetPreset } from './targets'
 import { TARGET_PRESETS } from './targets'
 
@@ -7,8 +8,6 @@ const props = defineProps<{
 	targets: DailyTargets
 	preset: TargetPreset
 	pending: boolean
-	errorMessage: string
-	notice: string
 }>()
 
 const emit = defineEmits<{
@@ -18,6 +17,10 @@ const emit = defineEmits<{
 const selectedPreset = shallowRef<TargetPreset>(props.preset)
 const draft = reactive<DailyTargets>({ ...props.targets })
 const error = shallowRef('')
+
+watch(error, (message) => {
+	if (message) toast.error(message, { duration: 4000 })
+})
 
 const presets = [
 	{ id: 'light' as const, title: 'Спокойный', summary: '1800 ккал · 1,8 л воды' },
@@ -101,9 +104,6 @@ function save() {
 			</label>
 		</div>
 
-		<p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
-		<p v-if="errorMessage" role="alert" class="text-sm text-red-600">{{ errorMessage }}</p>
-		<p v-if="notice" role="status" class="text-sm text-green-700">{{ notice }}</p>
 		<Button type="submit" :disabled="pending">
 			{{ pending ? 'Сохраняю...' : 'Сохранить цель' }}
 		</Button>
