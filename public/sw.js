@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
 
 	event.waitUntil(self.registration.showNotification(payload.title, {
 		body: payload.body,
-		icon: '/icon.svg',
+		icon: '/icon-192.png',
 		badge: '/notification-badge.svg',
 		tag: typeof payload.tag === 'string' ? payload.tag : 'meal-reminder',
 		data: { url: typeof payload.url === 'string' ? payload.url : '/' },
