@@ -19,7 +19,9 @@
 				:title="refreshing ? 'Оновлення журналу' : 'Оновити журнал'"
 				@click="refreshHistory"
 			>
-				<span :class="{ 'animate-spin': refreshing }" aria-hidden="true">↻</span>
+				<span :class="{ 'animate-spin': refreshing }" aria-hidden="true"
+					>↻</span
+				>
 			</Button>
 		</header>
 
@@ -105,7 +107,7 @@
 						>Приклад</span
 					>
 				</header>
-				<div class="grid md:grid-cols-[minmax(0,1fr)_18rem]">
+				<div class="grid md:grid-cols-[minmax(0,1fr)_18rem] overflow-x-auto">
 					<ul class="divide-y divide-border/70">
 						<li
 							v-for="entry in day.entries"
@@ -233,7 +235,7 @@
 				<div
 					v-if="expandedDates.has(day.date)"
 					:id="`history-day-${day.date}`"
-					class="grid md:grid-cols-[minmax(0,1fr)_18rem]"
+					class="grid md:grid-cols-[minmax(0,1fr)_18rem] overflow-x-auto"
 				>
 					<ul v-if="day.entries.length" class="divide-y divide-border/70">
 						<li
@@ -248,17 +250,32 @@
 								:aria-label="`Справка о продукте ${entry.title}`"
 								@click="openProductInfo(entry)"
 							>
-								<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF1DC] text-sm font-bold text-[#5D6B35]" aria-hidden="true">Ї</span>
+								<span
+									class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF1DC] text-sm font-bold text-[#5D6B35]"
+									aria-hidden="true"
+									>Ї</span
+								>
 								<span class="min-w-0 flex-1">
-									<span class="block truncate font-semibold">{{ entry.title }}</span>
-									<span class="mt-0.5 block truncate text-sm text-muted-foreground">{{ entry.detail }} · {{ entry.amount }}</span>
+									<span class="block truncate font-semibold">{{
+										entry.title
+									}}</span>
+									<span
+										class="mt-0.5 block truncate text-sm text-muted-foreground"
+										>{{ entry.detail }} · {{ entry.amount }}</span
+									>
 								</span>
 							</button>
 							<div v-else class="flex min-w-0 flex-1 items-center gap-3">
-								<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5F2F4] text-sm font-bold text-[#2F6F7A]" aria-hidden="true">Н</span>
+								<span
+									class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5F2F4] text-sm font-bold text-[#2F6F7A]"
+									aria-hidden="true"
+									>Н</span
+								>
 								<div class="min-w-0 flex-1">
 									<p class="truncate font-semibold">{{ entry.title }}</p>
-									<p class="mt-0.5 truncate text-sm text-muted-foreground">{{ entry.detail }} · {{ entry.amount }}</p>
+									<p class="mt-0.5 truncate text-sm text-muted-foreground">
+										{{ entry.detail }} · {{ entry.amount }}
+									</p>
 								</div>
 							</div>
 							<div class="shrink-0 text-right">
@@ -345,7 +362,10 @@ import {
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
 import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
-import type { FoodProductInfo, LoggedFoodInfo } from '~/src/features/dashboard/foodProduct'
+import type {
+	FoodProductInfo,
+	LoggedFoodInfo,
+} from '~/src/features/dashboard/foodProduct'
 
 type PeriodKey = 'morning' | 'day' | 'evening'
 
@@ -604,10 +624,7 @@ async function loadHistory(id: string, force = false) {
 
 	const cached = historyCache.value[id]
 	if (!force && cached && Date.now() - cached.cachedAt < HISTORY_CACHE_TTL_MS) {
-		if (
-			userId.value !== id
-			|| historyLoadGeneration !== loadGeneration
-		) return
+		if (userId.value !== id || historyLoadGeneration !== loadGeneration) return
 		restoreHistorySnapshot(cached)
 		loading.value = false
 		return
@@ -638,10 +655,7 @@ async function loadHistory(id: string, force = false) {
 			.order('recorded_at', { ascending: false }),
 	])
 
-	if (
-		userId.value !== id
-		|| historyLoadGeneration !== loadGeneration
-	) return
+	if (userId.value !== id || historyLoadGeneration !== loadGeneration) return
 
 	if (foods.error || drinks.error || moods.error) {
 		error.value = 'Не вдалося завантажити журнал. Спробуйте оновити сторінку.'
