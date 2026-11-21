@@ -77,6 +77,7 @@ const vitaminC = shallowRef<number | null>(null)
 const pending = shallowRef(false)
 const error = shallowRef('')
 const success = shallowRef('')
+const dashboardCache = useState<Record<string, unknown>>('dashboard-cache', () => ({}))
 const quantityPlaceholder = computed(() => {
 	if (unit.value === 'ml') return 'Объём, мл'
 	if (unit.value === 'piece') return 'Количество, шт.'
@@ -89,12 +90,13 @@ async function addFood() {
 		error.value = 'Нужно войти в аккаунт'
 		return
 	}
+	const id = user.value.id
 
 	pending.value = true
 	error.value = ''
 	success.value = ''
 
-	const { error: saveError } = await addProduct(supabase, user.value.id, {
+	const { error: saveError } = await addProduct(supabase, id, {
 		name: name.value,
 		quantity: Number(quantity.value),
 		chars: {
@@ -127,6 +129,9 @@ async function addFood() {
 	vitaminA.value = null
 	vitaminB.value = null
 	vitaminC.value = null
+	for (const key of Object.keys(dashboardCache.value)) {
+		if (key.startsWith(`${id}:`)) delete dashboardCache.value[key]
+	}
 	success.value = 'Продукт сохранён'
 }
 </script>

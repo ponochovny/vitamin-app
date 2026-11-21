@@ -1,36 +1,40 @@
 <template>
-	<main class="mx-auto max-w-4xl space-y-5 px-2 pb-10 sm:px-0">
-		<section class="rounded-2xl border bg-card p-4 sm:p-6">
-			<div class="flex items-center gap-3">
-				<button
-					type="button"
-					class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-3xl leading-none text-primary-foreground shadow-sm"
-					:aria-haspopup="userId ? 'dialog' : undefined"
-					aria-label="Добавить еду или напиток"
-					@click="openQuickLog"
-				>
-					+
-				</button>
-				<div class="min-w-0 flex-1">
-					<p class="text-sm text-muted-foreground">{{ todayLabel }}</p>
-					<h1 class="text-2xl font-bold">Мой дневник</h1>
-				</div>
+	<main class="pb-10 pt-6 sm:pt-8">
+		<header class="mb-5 flex items-end justify-between gap-4 sm:mb-7">
+			<div>
+				<p class="mb-1 text-sm font-medium text-muted-foreground">{{ todayLabel }}</p>
+				<h1 class="text-[2rem] leading-none font-bold tracking-[-0.035em] sm:text-[2.5rem]">Мій щоденник</h1>
+			</div>
+			<div class="flex shrink-0 items-center gap-2">
 				<Button
+					v-if="userId"
 					type="button"
 					variant="outline"
-					:aria-haspopup="userId ? 'dialog' : undefined"
-					@click="openTargets"
+					class="h-12 w-12 rounded-full px-0"
+					:disabled="refreshing"
+					:aria-label="refreshing ? 'Оновлення щоденника' : 'Оновити щоденник'"
+					:title="refreshing ? 'Оновлення щоденника' : 'Оновити щоденник'"
+					@click="refreshDashboard"
 				>
-					Мои цели
+					<span :class="{ 'animate-spin': refreshing }" aria-hidden="true">↻</span>
+				</Button>
+				<Button
+					type="button"
+					class="h-12 shrink-0 rounded-full bg-primary px-4 text-[15px] font-semibold shadow-[0_10px_24px_rgba(36,107,79,0.18)] sm:px-5"
+					:aria-haspopup="userId ? 'dialog' : undefined"
+					@click="openQuickLog"
+				>
+					<span class="mr-1 text-xl leading-none">+</span>
+					Додати запис
 				</Button>
 			</div>
-		</section>
+		</header>
 
 		<Dialog v-model:open="quickLogOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>Добавить запись</DialogTitle>
-					<DialogDescription>Выбери еду или напиток для дневника.</DialogDescription>
+					<DialogTitle>Додати запис</DialogTitle>
+					<DialogDescription>Оберіть їжу або напій для щоденника.</DialogDescription>
 				</DialogHeader>
 				<QuickLogForm
 					v-if="userId"
@@ -46,8 +50,8 @@
 		<Dialog v-model:open="targetsOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>Мои цели</DialogTitle>
-					<DialogDescription>Выбери готовый пресет или задай значения вручную.</DialogDescription>
+					<DialogTitle>Мої цілі</DialogTitle>
+					<DialogDescription>Оберіть готовий пресет або задайте значення вручну.</DialogDescription>
 				</DialogHeader>
 				<DailyTargetSettings
 					v-if="userId"
@@ -61,142 +65,240 @@
 			</DialogContent>
 		</Dialog>
 
-		<p v-if="error" role="alert" class="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">
+		<p v-if="error" role="alert" class="mb-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
 			{{ error }}
 		</p>
-		<p v-if="notice" role="status" class="rounded-lg border border-green-300 bg-green-50 p-3 text-green-800">
+		<p v-if="notice" role="status" class="mb-4 rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm text-primary">
 			{{ notice }}
 		</p>
 
-		<section v-if="loading" role="status" class="rounded-xl border bg-card p-6">
-			Загружаю дневник...
+		<section v-if="loading" role="status" class="rounded-[1.5rem] border border-border/80 bg-card p-8 text-sm text-muted-foreground">
+			Завантажую щоденник...
 		</section>
 
-		<section v-else-if="!userId" class="rounded-xl border bg-card p-6 text-center">
-			<h2 class="text-lg font-semibold">Войди, чтобы вести дневник</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Записи и цели сохраняются в твоём аккаунте.</p>
-			<NuxtLink to="/signin" class="mt-4 inline-block">
-				<Button>Войти</Button>
+		<section v-else-if="!userId" class="rounded-[1.5rem] border border-border/80 bg-card px-6 py-12 text-center shadow-[0_12px_40px_rgba(32,52,44,0.05)]">
+			<h2 class="text-xl font-bold">Увійдіть, щоб вести щоденник</h2>
+			<p class="mt-2 text-sm text-muted-foreground">Записи й цілі зберігаються у вашому акаунті.</p>
+			<NuxtLink to="/signin" class="mt-5 inline-block">
+				<Button class="h-11 rounded-full px-5">Увійти</Button>
 			</NuxtLink>
 		</section>
 
-		<template v-else>
-			<section class="grid gap-3 sm:grid-cols-2" aria-label="Прогресс за день">
-				<article class="flex items-center gap-4 rounded-2xl border bg-card p-4 sm:p-5">
-					<div
-						class="progress-dial"
-						:style="dialStyle(nutrition.calories, targets.calories)"
-						role="progressbar"
-						:aria-valuenow="Math.round(progress(nutrition.calories, targets.calories))"
-						aria-valuemin="0"
-						aria-valuemax="100"
-						aria-label="Калории за день"
-					>
-						<div class="progress-dial__center">
-							<strong>{{ formatNumber(nutrition.calories) }}</strong>
-							<span>ккал</span>
-						</div>
-					</div>
+		<div v-else class="space-y-5">
+			<section class="overflow-hidden rounded-[1.75rem] border border-primary/10 bg-primary p-5 text-primary-foreground shadow-[0_18px_50px_rgba(36,107,79,0.16)] sm:p-7" aria-labelledby="goal-heading">
+				<div class="flex items-start justify-between gap-4">
 					<div>
-						<h2 class="font-semibold">Энергия</h2>
-						<p class="text-sm text-muted-foreground">
-							из {{ formatNumber(targets.calories) }} ккал
-						</p>
-						<p class="mt-1 text-sm">{{ balanceLabel(nutrition.calories, targets.calories, 'ккал') }}</p>
+						<p class="text-sm font-medium text-white/70">{{ todayLabel }}</p>
+						<h2 id="goal-heading" class="mt-1 text-2xl font-bold tracking-[-0.03em] sm:text-[2rem]">Мета на сьогодні</h2>
 					</div>
-				</article>
-
-				<article class="flex items-center gap-4 rounded-2xl border bg-card p-4 sm:p-5">
-					<div
-						class="progress-dial progress-dial--blue"
-						:style="dialStyle(totalBeverages, targets.beveragesMl, true)"
-						role="progressbar"
-						:aria-valuenow="Math.round(progress(totalBeverages, targets.beveragesMl))"
-						aria-valuemin="0"
-						aria-valuemax="100"
-						aria-label="Объём напитков за день"
-					>
-						<div class="progress-dial__center">
-							<strong>{{ formatVolume(totalBeverages) }}</strong>
-							<span>мл</span>
-						</div>
-					</div>
-					<div>
-						<h2 class="font-semibold">Напитки</h2>
-						<p class="text-sm text-muted-foreground">
-							из {{ formatVolume(targets.beveragesMl) }} мл цели
-						</p>
-						<p class="mt-1 text-sm">Чистая вода: {{ formatVolume(pureWater) }} мл</p>
-					</div>
-				</article>
-			</section>
-
-			<section class="grid grid-cols-3 gap-2" aria-label="Нутриенты за день">
-				<div v-for="macro in macros" :key="macro.key" class="rounded-xl border bg-card p-3">
-					<p class="text-xs text-muted-foreground">{{ macro.label }}</p>
-					<p class="mt-1 font-semibold">
-						{{ formatNumber(nutrition[macro.key]) }} / {{ formatNumber(targets[macro.key]) }} г
-					</p>
-					<div class="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-						<div
-							class="h-full rounded-full bg-primary"
-							:style="{ width: `${progress(nutrition[macro.key], targets[macro.key])}%` }"
-						/>
-					</div>
-				</div>
-			</section>
-
-			<section class="rounded-xl border bg-card p-4 sm:p-5">
-				<div class="mb-3 flex items-center justify-between gap-3">
 					<button
 						type="button"
-						class="flex w-full items-center justify-between gap-3 text-left"
-						:aria-expanded="recordsOpen"
-						aria-controls="diary-records"
-						@click="recordsOpen = !recordsOpen"
+						class="flex h-11 min-w-11 items-center justify-center rounded-full bg-secondary px-4 text-sm font-bold text-secondary-foreground"
+						@click="openTargets"
 					>
-						<span>
-							<span class="block text-lg font-bold">Сегодня в дневнике</span>
-							<span class="block text-sm font-normal text-muted-foreground">
-								{{ records.length }} записей
-							</span>
-						</span>
-						<span class="shrink-0 text-sm text-primary">
-							{{ recordsOpen ? 'Скрыть' : 'Показать' }}
-						</span>
+						Цілі
 					</button>
 				</div>
-				<div v-show="recordsOpen" id="diary-records" class="mt-3">
-					<p v-if="!records.length" class="text-sm text-muted-foreground">
-						Пока пусто. Нажми «+», чтобы записать еду или напиток.
+
+				<div class="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Калорії</p>
+							<p class="text-xs font-bold text-secondary">{{ Math.round(progress(nutrition.calories, targets.calories)) }}%</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">{{ formatNumber(nutrition.calories) }} <span class="text-xs font-normal text-white/65">/ {{ formatNumber(targets.calories) }} ккал</span></p>
+						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+							<div class="h-full rounded-full bg-secondary" :style="{ width: `${progress(nutrition.calories, targets.calories)}%` }" />
+						</div>
+					</article>
+
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Білки</p>
+							<p class="text-xs font-bold text-secondary">{{ Math.round(progress(nutrition.proteins, targets.proteins)) }}%</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">{{ formatNumber(nutrition.proteins) }} <span class="text-xs font-normal text-white/65">/ {{ formatNumber(targets.proteins) }} г</span></p>
+						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+							<div class="h-full rounded-full bg-secondary" :style="{ width: `${progress(nutrition.proteins, targets.proteins)}%` }" />
+						</div>
+					</article>
+
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Жири</p>
+							<p class="text-xs font-bold text-secondary">{{ Math.round(progress(nutrition.fats, targets.fats)) }}%</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">{{ formatNumber(nutrition.fats) }} <span class="text-xs font-normal text-white/65">/ {{ formatNumber(targets.fats) }} г</span></p>
+						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+							<div class="h-full rounded-full bg-secondary" :style="{ width: `${progress(nutrition.fats, targets.fats)}%` }" />
+						</div>
+					</article>
+
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Вуглеводи</p>
+							<p class="text-xs font-bold text-secondary">{{ Math.round(progress(nutrition.carbs, targets.carbs)) }}%</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">{{ formatNumber(nutrition.carbs) }} <span class="text-xs font-normal text-white/65">/ {{ formatNumber(targets.carbs) }} г</span></p>
+						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+							<div class="h-full rounded-full bg-secondary" :style="{ width: `${progress(nutrition.carbs, targets.carbs)}%` }" />
+						</div>
+					</article>
+
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Вода</p>
+							<p class="text-xs font-bold text-secondary">{{ Math.round(progress(pureWater, targets.beveragesMl)) }}%</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">{{ formatVolume(pureWater) }} <span class="text-xs font-normal text-white/65">/ {{ formatVolume(targets.beveragesMl) }} мл</span></p>
+						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+							<div class="h-full rounded-full bg-secondary" :style="{ width: `${progress(pureWater, targets.beveragesMl)}%` }" />
+						</div>
+					</article>
+
+					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-medium text-white/70">Настрій</p>
+							<p class="text-xs font-bold text-secondary">{{ completedWellbeingCount }}/3</p>
+						</div>
+						<p class="mt-2 text-lg font-bold leading-none">
+							{{ remainingWellbeingCount ? `Ще ${remainingWellbeingCount}` : 'Усе позначено' }}
+						</p>
+						<p class="mt-2 text-xs text-white/65">
+							Ранок · День · Вечір
+						</p>
+					</article>
+				</div>
+			</section>
+
+			<section class="rounded-[1.75rem] border border-border/80 bg-card p-5 shadow-[0_12px_40px_rgba(32,52,44,0.05)] sm:p-6" aria-labelledby="wellbeing-heading">
+				<div class="mb-5 flex items-start justify-between gap-4">
+					<div>
+						<p class="text-sm font-medium text-muted-foreground">Коротка перевірка</p>
+						<h2 id="wellbeing-heading" class="mt-1 text-xl font-bold">Як ти себе почуваєш?</h2>
+					</div>
+					<span class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">
+						{{ completedWellbeingCount }}/3
+					</span>
+				</div>
+
+				<div class="grid gap-3 md:grid-cols-3">
+					<article
+						v-for="period in wellbeingPeriods"
+						:key="period.key"
+						class="rounded-2xl border p-4"
+						:class="period.key === currentPeriod
+							? 'border-primary/35 bg-primary/[0.035]'
+							: 'border-border/80 bg-white'"
+					>
+						<div class="mb-3 flex items-center justify-between">
+							<div>
+								<p class="font-bold">{{ period.label }}</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">{{ period.hint }}</p>
+							</div>
+							<span
+								v-if="period.key === currentPeriod"
+								class="rounded-full bg-secondary px-2 py-1 text-[11px] font-bold text-secondary-foreground"
+							>
+								Зараз
+							</span>
+						</div>
+						<div class="grid grid-cols-5 gap-1.5" role="radiogroup" :aria-label="`Самопочуття ${period.label.toLowerCase()}ом`">
+							<button
+								v-for="option in moodOptions"
+								:key="option.mood"
+								type="button"
+								role="radio"
+								:aria-checked="wellbeingByPeriod[period.key]?.value.mood === option.mood"
+								:aria-label="`${option.label}, ${period.label}`"
+								:disabled="wellbeingPending"
+								class="flex min-h-14 flex-col items-center justify-center rounded-xl border text-center transition-colors"
+								:class="wellbeingByPeriod[period.key]?.value.mood === option.mood
+									? 'border-primary bg-primary text-primary-foreground'
+									: 'border-border bg-white hover:border-primary/40'"
+								:title="option.label"
+								@click="saveMood(period.key, option)"
+							>
+								<span class="text-xl leading-none">{{ option.emoji }}</span>
+							</button>
+						</div>
+						<p class="mt-2 min-h-5 text-center text-xs text-muted-foreground">
+							{{ moodOptions.find((option) => option.mood === wellbeingByPeriod[period.key]?.value.mood)?.label || 'Оберіть стан' }}
+						</p>
+					</article>
+				</div>
+			</section>
+
+			<MealReminderSettings :user-id="userId" />
+
+			<div class="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.65fr)]">
+				<section class="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card" aria-labelledby="records-heading">
+					<div class="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6">
+						<div>
+							<h2 id="records-heading" class="text-lg font-bold">Що вже зроблено</h2>
+							<p class="mt-0.5 text-sm text-muted-foreground">{{ records.length }} {{ recordsCountLabel }}</p>
+						</div>
+						<button type="button" class="h-10 rounded-full border border-border px-4 text-sm font-bold" @click="openQuickLog">
+							Додати
+						</button>
+					</div>
+					<p v-if="!records.length" class="px-5 py-8 text-center text-sm text-muted-foreground sm:px-6">
+						Ще нічого не записано. Додайте їжу або напій, коли буде зручно.
 					</p>
-					<ul v-else class="divide-y">
-						<li
-							v-for="record in records"
-							:key="record.id"
-							class="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-						>
-							<div class="min-w-0">
-								<p class="truncate font-medium">{{ record.title }}</p>
-								<p class="text-sm text-muted-foreground">{{ record.detail }}</p>
+					<ul v-else class="divide-y divide-border/70">
+						<li v-for="record in records" :key="record.id" class="flex items-center gap-3 px-5 py-4 sm:px-6">
+							<span
+								class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] text-lg font-bold"
+								:class="record.kind === 'food' ? 'bg-[#EDF1DC] text-[#5D6B35]' : 'bg-[#E5F2F4] text-[#2F6F7A]'"
+								aria-hidden="true"
+							>
+								{{ record.kind === 'food' ? 'Ї' : 'Н' }}
+							</span>
+							<div class="min-w-0 flex-1">
+								<p class="truncate font-semibold">{{ record.title }}</p>
+								<p class="mt-0.5 truncate text-sm text-muted-foreground">{{ record.detail }}</p>
 							</div>
 							<div class="shrink-0 text-right">
-								<time :datetime="record.createdAt" class="block text-xs text-muted-foreground">
-									{{ formatLocalHour(record.createdAt) }}
-								</time>
-								<p class="text-sm">
+								<time :datetime="record.createdAt" class="block text-xs text-muted-foreground">{{ formatLocalHour(record.createdAt) }}</time>
+								<p class="mt-1 text-sm font-bold">
 									{{ record.kind === 'food' ? `${formatNumber(record.calories)} ккал` : `${formatVolume(record.volumeMl)} мл` }}
 								</p>
 							</div>
 						</li>
 					</ul>
-				</div>
-			</section>
-			<p class="px-1 text-xs text-muted-foreground">
-				Цели — выбранные пользователем ориентиры. Объём напитков — это сумма записанных напитков,
-				а не медицинская норма или «эквивалент воды».
-			</p>
-		</template>
+				</section>
+
+				<aside class="space-y-5">
+					<section class="grid grid-cols-2 gap-3" aria-label="Супутній прогрес">
+						<article class="rounded-[1.5rem] border border-border/80 bg-card p-4">
+							<p class="text-sm font-semibold text-muted-foreground">Напої</p>
+							<p class="mt-3 text-[1.7rem] leading-none font-bold">{{ formatVolume(totalBeverages) }}</p>
+							<p class="mt-1 text-xs text-muted-foreground">з {{ formatVolume(targets.beveragesMl) }} мл</p>
+						</article>
+						<article class="rounded-[1.5rem] border border-border/80 bg-card p-4">
+							<p class="text-sm font-semibold text-muted-foreground">Енергія</p>
+							<p class="mt-3 text-[1.7rem] leading-none font-bold">{{ formatNumber(nutrition.calories) }}</p>
+							<p class="mt-1 text-xs text-muted-foreground">з {{ formatNumber(targets.calories) }} ккал</p>
+						</article>
+					</section>
+
+					<section class="rounded-[1.5rem] border border-border/80 bg-card p-5" aria-label="Нутрієнти за день">
+						<h2 class="mb-4 font-bold">Нутрієнти</h2>
+						<div class="space-y-4">
+							<div v-for="macro in macros" :key="macro.key">
+								<div class="mb-1.5 flex items-baseline justify-between gap-3">
+									<p class="text-sm text-muted-foreground">{{ macro.label }}</p>
+									<p class="text-sm font-bold">{{ formatNumber(nutrition[macro.key]) }} <span class="font-normal text-muted-foreground">/ {{ formatNumber(targets[macro.key]) }} г</span></p>
+								</div>
+								<div class="h-1.5 overflow-hidden rounded-full bg-muted">
+									<div class="h-full rounded-full bg-primary" :style="{ width: `${progress(nutrition[macro.key], targets[macro.key])}%` }" />
+								</div>
+							</div>
+						</div>
+					</section>
+				</aside>
+			</div>
+		</div>
 	</main>
 </template>
 
@@ -205,6 +307,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
+import MealReminderSettings from '~/src/features/reminders/MealReminderSettings.vue'
 import {
 	Dialog,
 	DialogContent,
@@ -263,28 +366,65 @@ interface DiaryRecord {
 	createdAt: string
 }
 
+interface WellbeingEntry {
+	id: string
+	value: {
+		period: 'morning' | 'day' | 'evening'
+		mood: number
+		label: string
+	}
+}
+
+interface DashboardSnapshot {
+	cachedAt: number
+	products: Product[]
+	foodLogs: FoodLog[]
+	drinkLogs: DrinkLog[]
+	wellbeingEntries: WellbeingEntry[]
+	targets: DailyTargets
+	targetPreset: TargetPreset
+}
+
+const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const userId = computed(() => user.value?.id ?? null)
 const loading = shallowRef(true)
+const refreshing = shallowRef(false)
 const savePending = shallowRef(false)
 const targetPending = shallowRef(false)
 const quickLogOpen = shallowRef(false)
 const targetsOpen = shallowRef(false)
-const recordsOpen = shallowRef(false)
 const error = shallowRef('')
 const notice = shallowRef('')
 const products = shallowRef<Product[]>([])
 const foodLogs = shallowRef<FoodLog[]>([])
 const drinkLogs = shallowRef<DrinkLog[]>([])
+const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
+const wellbeingPending = shallowRef(false)
 const targets = shallowRef<DailyTargets>({ ...DEFAULT_TARGETS })
 const targetPreset = shallowRef<TargetPreset>('balanced')
+const dashboardCache = useState<Record<string, DashboardSnapshot>>('dashboard-cache', () => ({}))
 
 const macros: Array<{ key: 'proteins' | 'fats' | 'carbs'; label: string }> = [
-	{ key: 'proteins', label: 'Белки' },
-	{ key: 'fats', label: 'Жиры' },
-	{ key: 'carbs', label: 'Углеводы' },
+	{ key: 'proteins', label: 'Білки' },
+	{ key: 'fats', label: 'Жири' },
+	{ key: 'carbs', label: 'Вуглеводи' },
 ]
+
+const moodOptions = [
+	{ mood: 1, emoji: '😞', label: 'Важко' },
+	{ mood: 2, emoji: '😕', label: 'Незручно' },
+	{ mood: 3, emoji: '😐', label: 'Звичайно' },
+	{ mood: 4, emoji: '🙂', label: 'Добре' },
+	{ mood: 5, emoji: '😄', label: 'Чудово' },
+] as const
+
+const wellbeingPeriods = [
+	{ key: 'morning', label: 'Ранок', hint: 'Як прокинувся?' },
+	{ key: 'day', label: 'День', hint: 'Як ти зараз?' },
+	{ key: 'evening', label: 'Вечір', hint: 'Як пройшов день?' },
+] as const
 
 const nutrition = computed(() => foodLogs.value.reduce(
 	(total, entry) => ({
@@ -323,7 +463,34 @@ const records = computed<DiaryRecord[]>(() => [
 		createdAt: drink.created_at,
 	})),
 ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
-const todayLabel = new Intl.DateTimeFormat('ru-RU', {
+const recordsCountLabel = computed(() => {
+	const count = records.value.length
+	if (count === 1) return 'запис'
+	if (count > 1 && count < 5) return 'записи'
+	return 'записів'
+})
+const currentPeriod = computed<'morning' | 'day' | 'evening'>(() => {
+	const hour = Number(new Intl.DateTimeFormat('en-GB', {
+		timeZone: 'Europe/Kyiv',
+		hour: '2-digit',
+		hourCycle: 'h23',
+	}).format(new Date()))
+	if (hour < 12) return 'morning'
+	if (hour < 18) return 'day'
+	return 'evening'
+})
+const completedWellbeingCount = computed(() =>
+	wellbeingEntries.value.filter((entry) =>
+		wellbeingPeriods.some((period) => period.key === entry.value.period)
+	).length
+)
+const remainingWellbeingCount = computed(() =>
+	Math.max(0, 3 - completedWellbeingCount.value)
+)
+const wellbeingByPeriod = computed(() => Object.fromEntries(
+	wellbeingEntries.value.map((entry) => [entry.value.period, entry])
+) as Partial<Record<'morning' | 'day' | 'evening', WellbeingEntry>>)
+const todayLabel = new Intl.DateTimeFormat('uk-UA', {
 	timeZone: 'Europe/Kyiv',
 	weekday: 'long',
 	day: 'numeric',
@@ -350,8 +517,19 @@ watch(userId, async (id) => {
 	await loadDashboard(id)
 }, { immediate: true })
 
-async function loadDashboard(id: string) {
-	loading.value = true
+async function loadDashboard(id: string, force = false) {
+	const cacheKey = dashboardCacheKey(id)
+	const cached = dashboardCache.value[cacheKey]
+	const cacheIsFresh = cached && Date.now() - cached.cachedAt < DASHBOARD_CACHE_TTL_MS
+
+	if (!force && cacheIsFresh) {
+		restoreDashboardSnapshot(cached)
+		loading.value = false
+		return
+	}
+
+	if (loading.value) loading.value = true
+	else refreshing.value = true
 	error.value = ''
 	notice.value = ''
 
@@ -359,10 +537,47 @@ async function loadDashboard(id: string) {
 		loadProducts(id),
 		loadDayEntries(id),
 		loadTargets(id),
+		loadWellbeing(id),
 	])
 	const failure = results.find((result) => result)
 	if (failure) error.value = failure
+	else cacheDashboardSnapshot(id)
 	loading.value = false
+	refreshing.value = false
+}
+
+function refreshDashboard() {
+	const id = userId.value
+	if (!id || refreshing.value) return
+	void loadDashboard(id, true)
+}
+
+function dashboardCacheKey(id: string) {
+	return `${id}:${getLocalDate()}`
+}
+
+function restoreDashboardSnapshot(cached: DashboardSnapshot) {
+	products.value = cached.products
+	foodLogs.value = cached.foodLogs
+	drinkLogs.value = cached.drinkLogs
+	wellbeingEntries.value = cached.wellbeingEntries ?? []
+	targets.value = { ...cached.targets }
+	targetPreset.value = cached.targetPreset
+}
+
+function cacheDashboardSnapshot(id: string) {
+	dashboardCache.value = {
+		...dashboardCache.value,
+		[dashboardCacheKey(id)]: {
+			cachedAt: Date.now(),
+			products: [...products.value],
+			foodLogs: [...foodLogs.value],
+			drinkLogs: [...drinkLogs.value],
+			wellbeingEntries: [...wellbeingEntries.value],
+			targets: { ...targets.value },
+			targetPreset: targetPreset.value,
+		},
+	}
 }
 
 async function loadProducts(id: string): Promise<string | null> {
@@ -418,6 +633,28 @@ async function loadDayEntries(id: string): Promise<string | null> {
 	if (foods.error || drinks.error) return 'Не удалось загрузить записи за сегодня.'
 	foodLogs.value = (foods.data ?? []) as unknown as FoodLog[]
 	drinkLogs.value = (drinks.data ?? []) as DrinkLog[]
+	return null
+}
+
+async function loadWellbeing(id: string): Promise<string | null> {
+	const localDate = getLocalDate()
+	const dayStart = new Date(`${localDate}T00:00:00+02:00`)
+	const dayEnd = new Date(dayStart)
+	dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
+
+	const { data, error: requestError } = await supabase
+		.from('wellbeing_entries')
+		.select('id, kind, value, recorded_at')
+		.eq('user_id', id)
+		.eq('kind', 'mood')
+		.gte('recorded_at', dayStart.toISOString())
+		.lt('recorded_at', dayEnd.toISOString())
+
+	if (requestError) return 'Не вдалося завантажити самопочуття.'
+	wellbeingEntries.value = (data ?? []).map((entry) => {
+		const value = entry.value as WellbeingEntry['value']
+		return { id: entry.id, value }
+	}).filter((entry) => wellbeingPeriods.some((period) => period.key === entry.value.period))
 	return null
 }
 
@@ -501,6 +738,45 @@ async function logDrink(entry: { kind: 'water' | 'coffee' | 'tea' | 'other'; vol
 	await refreshDay(id)
 }
 
+async function saveMood(
+	period: 'morning' | 'day' | 'evening',
+	option: (typeof moodOptions)[number]
+) {
+	const id = userId.value
+	if (!id || wellbeingPending.value) return
+
+	wellbeingPending.value = true
+	error.value = ''
+	notice.value = ''
+	const existing = wellbeingByPeriod.value[period]
+	const payload = {
+		user_id: id,
+		kind: 'mood',
+		entry_date: getLocalDate(),
+		value: {
+			period,
+			mood: option.mood,
+			label: option.label,
+		},
+		recorded_at: new Date().toISOString(),
+	}
+
+	const request = existing
+		? supabase.from('wellbeing_entries').update(payload).eq('id', existing.id).eq('user_id', id)
+		: supabase.from('wellbeing_entries').insert(payload)
+	const { error: saveError } = await request
+	wellbeingPending.value = false
+
+	if (saveError) {
+		error.value = 'Не вдалося зберегти самопочуття. Спробуйте ще раз.'
+		return
+	}
+
+	await loadWellbeing(id)
+	cacheDashboardSnapshot(id)
+	notice.value = `${wellbeingPeriods.find((item) => item.key === period)?.label}: обрано «${option.label}».`
+}
+
 async function saveTargets(payload: { targets: DailyTargets; preset: TargetPreset }) {
 	const id = userId.value
 	if (!id || targetPending.value) return
@@ -521,12 +797,14 @@ async function saveTargets(payload: { targets: DailyTargets; preset: TargetPrese
 
 	targets.value = { ...payload.targets }
 	targetPreset.value = payload.preset
+	cacheDashboardSnapshot(id)
 	notice.value = 'Дневные цели сохранены.'
 }
 
 async function refreshDay(id: string) {
 	const loadError = await loadDayEntries(id)
 	if (loadError) error.value = loadError
+	else cacheDashboardSnapshot(id)
 }
 
 function scaleVitamins(
@@ -561,31 +839,16 @@ function progress(value: number, target: number) {
 	return getProgressPercent(value, target)
 }
 
-function dialStyle(value: number, target: number, blue = false) {
-	const amount = progress(value, target)
-	const color = blue ? '#0284c7' : 'hsl(var(--primary))'
-	return {
-		background: `conic-gradient(${color} ${amount}%, hsl(var(--muted)) ${amount}% 100%)`,
-	}
-}
-
-function balanceLabel(value: number, target: number, unit: string) {
-	const difference = target - value
-	return difference > 0
-		? `Осталось ${formatNumber(difference)} ${unit}`
-		: `Цель выполнена · +${formatNumber(Math.abs(difference))} ${unit}`
-}
-
 function formatNumber(value: number) {
-	return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(value)
 }
 
 function formatVolume(value: number) {
-	return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(value)
 }
 
 function drinkKindLabel(kind: string) {
-	return { water: 'Вода', coffee: 'Кофе', tea: 'Чай', other: 'Напиток' }[kind] ?? 'Напиток'
+	return { water: 'Вода', coffee: 'Кава', tea: 'Чай', other: 'Напій' }[kind] ?? 'Напій'
 }
 
 function unitLabel(unit: 'g' | 'ml' | 'piece' | undefined) {
@@ -601,40 +864,3 @@ const seedProducts = [
 	{ name: 'Яблоко', quantity: 100, chars: { calories: 52, proteins: 0.3, fats: 0.2, carbs: 13.8, vitamins: {}, unit: 'g', estimate: true } },
 ]
 </script>
-
-<style scoped>
-.progress-dial {
-	display: grid;
-	width: 5.75rem;
-	height: 5.75rem;
-	flex: 0 0 auto;
-	place-items: center;
-	border-radius: 9999px;
-	background: conic-gradient(hsl(var(--primary)) 0%, hsl(var(--muted)) 0% 100%);
-}
-
-.progress-dial--blue {
-	background: conic-gradient(#0284c7 0%, hsl(var(--muted)) 0% 100%);
-}
-
-.progress-dial__center {
-	display: flex;
-	width: 4.65rem;
-	height: 4.65rem;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	border-radius: 9999px;
-	background: hsl(var(--card));
-}
-
-.progress-dial__center strong {
-	font-size: 1rem;
-	line-height: 1.2;
-}
-
-.progress-dial__center span {
-	font-size: 0.7rem;
-	color: hsl(var(--muted-foreground));
-}
-</style>
