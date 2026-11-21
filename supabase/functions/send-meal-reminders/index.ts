@@ -2,6 +2,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import * as webpush from 'jsr:@negrel/webpush@0.5.0'
+import { isAllowedPushEndpoint } from '../_shared/push.ts'
 
 interface ReminderRow {
 	user_id: string
@@ -24,12 +25,6 @@ const periodLabels: Record<ReminderRow['period'], string> = {
 	day: 'день',
 	evening: 'вечір',
 }
-
-const allowedPushHost = (hostname: string) =>
-	hostname === 'fcm.googleapis.com'
-	|| hostname === 'web.push.apple.com'
-	|| hostname.endsWith('.push.services.mozilla.com')
-	|| hostname.endsWith('.notify.windows.com')
 
 Deno.serve(async (request) => {
 	if (request.method !== 'POST') {
@@ -97,7 +92,7 @@ Deno.serve(async (request) => {
 					continue
 				}
 
-				if (endpoint.protocol !== 'https:' || !allowedPushHost(endpoint.hostname)) {
+				if (!isAllowedPushEndpoint(endpoint)) {
 					lastError = 'Push endpoint host is not supported.'
 					console.error('Skipped unsupported push endpoint host:', endpoint.hostname)
 					continue

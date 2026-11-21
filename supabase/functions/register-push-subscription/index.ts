@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { isAllowedPushEndpoint } from '../_shared/push.ts'
 
 interface SubscriptionPayload {
 	endpoint: string
@@ -13,12 +14,6 @@ const corsHeaders = {
 	'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 	'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
-
-const allowedPushHost = (hostname: string) =>
-	hostname === 'fcm.googleapis.com'
-	|| hostname === 'web.push.apple.com'
-	|| hostname.endsWith('.push.services.mozilla.com')
-	|| hostname.endsWith('.notify.windows.com')
 
 Deno.serve(async (request) => {
 	if (request.method === 'OPTIONS') {
@@ -69,8 +64,7 @@ Deno.serve(async (request) => {
 			return jsonResponse({ error: 'Invalid push endpoint.' }, 400)
 		}
 		if (
-			endpoint.protocol !== 'https:'
-			|| !allowedPushHost(endpoint.hostname)
+			!isAllowedPushEndpoint(endpoint)
 			|| !/^[A-Za-z0-9_-]+$/.test(subscription.auth)
 			|| !/^[A-Za-z0-9_-]+$/.test(subscription.p256dh)
 		) {

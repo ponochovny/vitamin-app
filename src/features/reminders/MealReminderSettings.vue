@@ -22,6 +22,7 @@ const supabase = useSupabaseClient()
 const config = useRuntimeConfig()
 const loading = shallowRef(true)
 const pending = shallowRef(false)
+const testPushPending = shallowRef(false)
 const enabledForAccount = shallowRef(false)
 const subscribedOnDevice = shallowRef(false)
 const notificationPermission = shallowRef<NotificationPermission | 'unsupported'>('unsupported')
@@ -223,6 +224,40 @@ async function disableOnDevice() {
 	}
 }
 
+async function sendTestNotification() {
+	error.value = ''
+	notice.value = ''
+	testPushPending.value = true
+	try {
+		const { data, error: testError } = await supabase.functions.invoke<{
+			sent: number
+			failed: number
+		}>('send-test-push')
+
+		if (testError) {
+			let message = testError.message
+			if ('context' in testError && testError.context instanceof Response) {
+				const body = await testError.context.clone().json() as { error?: unknown }
+				if (typeof body.error === 'string') message = body.error
+			}
+			throw new Error(message)
+		}
+		if (!data || !Number.isInteger(data.sent) || !Number.isInteger(data.failed) || data.sent < 1) {
+			throw new Error('Push-сервіс не прийняв тестове сповіщення.')
+		}
+
+		notice.value = data.failed > 0
+			? `Push-сервіс прийняв ${data.sent} тестових сповіщень; пристроїв із помилкою: ${data.failed}.`
+			: `Push-сервіс прийняв ${data.sent} тестових сповіщень. Це ще не гарантує показ на екрані.`
+	} catch (cause) {
+		error.value = cause instanceof Error
+			? `Не вдалося надіслати тестове сповіщення: ${cause.message}`
+			: 'Не вдалося надіслати тестове сповіщення.'
+	} finally {
+		testPushPending.value = false
+	}
+}
+
 async function persistSettings(enabled: boolean): Promise<boolean> {
 	const { error: saveError } = await supabase
 		.from('meal_reminder_settings')
@@ -343,6 +378,20 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 					>
 						{{ pending ? 'Вимкнення…' : 'Вимкнути на цьому пристрої' }}
 					</Button>
+				</div>
+
+				<div v-if="enabledForAccount" class="space-y-2">
+					<Button
+						type="button"
+						variant="outline"
+						:disabled="pending || testPushPending"
+						@click="sendTestNotification"
+					>
+						{{ testPushPending ? 'Надсилаю тест…' : 'Надіслати тестове сповіщення' }}
+					</Button>
+					<p class="text-xs text-muted-foreground">
+						Тест надійде на всі пристрої з підпискою, навіть якщо застосунок закритий.
+					</p>
 				</div>
 
 				<p v-if="!canReceivePush" class="text-sm text-muted-foreground">
