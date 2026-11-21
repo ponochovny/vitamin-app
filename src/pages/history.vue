@@ -2,118 +2,318 @@
 	<main class="pb-12 pt-6 sm:pt-8">
 		<header class="mb-6 flex items-end justify-between gap-4">
 			<div>
-				<p class="text-sm font-medium text-muted-foreground">Записи за всі дати</p>
-				<h1 class="mt-1 text-3xl font-bold tracking-[-0.04em] sm:text-4xl">Журнал</h1>
+				<p class="text-sm font-medium text-muted-foreground">
+					Записи за всі дати
+				</p>
+				<h1 class="mt-1 text-3xl font-bold tracking-[-0.04em] sm:text-4xl">
+					Журнал
+				</h1>
 			</div>
+			<Button
+				v-if="userId"
+				type="button"
+				variant="outline"
+				class="h-12 w-12 shrink-0 rounded-full px-0"
+				:disabled="refreshing"
+				:aria-label="refreshing ? 'Оновлення журналу' : 'Оновити журнал'"
+				:title="refreshing ? 'Оновлення журналу' : 'Оновити журнал'"
+				@click="refreshHistory"
+			>
+				<span :class="{ 'animate-spin': refreshing }" aria-hidden="true">↻</span>
+			</Button>
 		</header>
 
-		<section v-if="loading" role="status" class="rounded-[1.5rem] border border-border/80 bg-card p-8 text-sm text-muted-foreground">
+		<Dialog v-model:open="editDialogOpen">
+			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>Исправить запись</DialogTitle>
+					<DialogDescription>
+						Измените количество — показатели еды пересчитаются по карточке
+						продукта.
+					</DialogDescription>
+				</DialogHeader>
+				<form v-if="editingEntry" class="space-y-4" @submit.prevent="saveEntry">
+					<p class="font-semibold">{{ editingEntry.title }}</p>
+					<label class="block space-y-1.5 text-sm font-medium">
+						<span>{{
+							editingEntry.kind === 'food'
+								? `Количество, ${editingEntry.unit}`
+								: 'Объём, мл'
+						}}</span>
+						<Input
+							v-if="editingEntry.kind === 'food'"
+							v-model="editQuantity"
+							type="number"
+							min="0.1"
+							step="any"
+							required
+						/>
+						<Input
+							v-else
+							v-model="editVolume"
+							type="number"
+							min="1"
+							step="1"
+							required
+						/>
+					</label>
+					<p v-if="editError" role="alert" class="text-sm text-destructive">
+						{{ editError }}
+					</p>
+					<Button type="submit" :disabled="entryPending">
+						{{ entryPending ? 'Сохраняю…' : 'Сохранить изменения' }}
+					</Button>
+				</form>
+			</DialogContent>
+		</Dialog>
+
+		<section
+			v-if="loading"
+			role="status"
+			class="rounded-3xl border border-border/80 bg-card p-8 text-sm text-muted-foreground"
+		>
 			Завантажуємо журнал...
 		</section>
 
-		<section v-else-if="!userId" class="relative space-y-5 overflow-hidden" aria-label="Представлення журналу для гостя">
-			<article v-for="day in guestPreviewDays" :key="day.date" class="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card">
-				<header class="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6">
+		<section
+			v-else-if="!userId"
+			class="relative space-y-5 overflow-hidden"
+			aria-label="Представлення журналу для гостя"
+		>
+			<article
+				v-for="day in guestPreviewDays"
+				:key="day.date"
+				class="overflow-hidden rounded-3xl border border-border/80 bg-card"
+			>
+				<header
+					class="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6"
+				>
 					<div>
-						<p class="text-xs font-medium text-muted-foreground">{{ day.relativeLabel }}</p>
+						<p class="text-xs font-medium text-muted-foreground">
+							{{ day.relativeLabel }}
+						</p>
 						<h2 class="mt-0.5 text-lg font-bold">{{ day.label }}</h2>
 					</div>
-					<span class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">Приклад</span>
+					<span
+						class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground"
+						>Приклад</span
+					>
 				</header>
 				<div class="grid md:grid-cols-[minmax(0,1fr)_18rem]">
 					<ul class="divide-y divide-border/70">
-						<li v-for="entry in day.entries" :key="entry.title" class="flex items-center gap-3 px-5 py-4 sm:px-6">
-							<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-sm font-bold">{{ entry.icon }}</span>
+						<li
+							v-for="entry in day.entries"
+							:key="entry.title"
+							class="flex items-center gap-3 px-5 py-4 sm:px-6"
+						>
+							<span
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-sm font-bold"
+								>{{ entry.icon }}</span
+							>
 							<div class="min-w-0 flex-1">
 								<p class="truncate font-semibold">{{ entry.title }}</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">{{ entry.detail }}</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									<time>{{ entry.time }}</time>
+									<span aria-hidden="true"> · </span>{{ entry.detail }}
+								</p>
 							</div>
 						</li>
 					</ul>
-					<div class="border-t border-border/70 p-5 md:border-t-0 md:border-l md:p-6">
+					<div
+						class="border-t border-border/70 p-5 md:border-t-0 md:border-l md:p-6"
+					>
 						<p class="text-sm font-bold">Самопочуття</p>
 						<div class="mt-3 space-y-2">
-							<div v-for="mood in day.moods" :key="mood.label" class="flex items-center justify-between rounded-xl border border-border/80 px-3 py-2.5">
-								<span class="text-sm text-muted-foreground">{{ mood.period }}</span>
-								<span class="text-sm">{{ mood.emoji }} {{ mood.label }}</span>
+							<div
+								v-for="mood in day.moods"
+								:key="mood.label"
+								class="flex items-center justify-between rounded-xl border border-border/80 px-3 py-2.5"
+							>
+								<span class="text-sm text-muted-foreground">{{
+									mood.period
+								}}</span>
+								<span class="flex items-center gap-2 text-sm">
+									{{ mood.emoji }} {{ mood.label }}
+									<time
+										v-if="mood.time"
+										class="text-xs text-muted-foreground"
+										>{{ mood.time }}</time
+									>
+								</span>
 							</div>
 						</div>
 					</div>
 				</div>
 			</article>
 
-			<div class="pointer-events-none absolute inset-0 rounded-[1.75rem] backdrop-blur-[8px]" aria-hidden="true" />
+			<div
+				class="pointer-events-none absolute inset-0 rounded-[1.75rem] backdrop-blur-[8px]"
+				aria-hidden="true"
+			/>
 			<div class="absolute inset-0 z-10 flex items-center justify-center px-5">
-				<div class="max-w-sm rounded-2xl border border-white/30 bg-[#20342C]/95 p-5 text-center text-primary-foreground shadow-2xl">
+				<div
+					class="max-w-sm rounded-2xl border border-white/30 bg-[#20342C]/95 p-5 text-center text-primary-foreground shadow-2xl"
+				>
 					<p class="text-lg font-bold">Це вигляд вашого журналу</p>
-					<p class="mt-2 text-sm leading-6 text-white/75">Увійдіть, щоб побачити реальні записи та позначки за датами.</p>
+					<p class="mt-2 text-sm leading-6 text-white/75">
+						Увійдіть, щоб побачити реальні записи та позначки за датами.
+					</p>
 					<NuxtLink to="/signin" class="mt-4 inline-flex">
-						<Button class="h-11 rounded-full bg-secondary px-5 text-secondary-foreground hover:bg-secondary">Увійти до журналу</Button>
+						<Button
+							class="h-11 rounded-full bg-secondary px-5 text-secondary-foreground hover:bg-secondary"
+							>Увійти до журналу</Button
+						>
 					</NuxtLink>
 				</div>
 			</div>
 		</section>
 
 		<section v-else class="space-y-5">
-			<div v-if="error" role="alert" class="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+			<div
+				v-if="error"
+				role="alert"
+				class="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+			>
 				{{ error }}
 			</div>
 
-			<div v-if="!days.length" class="rounded-[1.5rem] border border-border/80 bg-card px-6 py-12 text-center">
+			<div
+				v-if="!days.length"
+				class="rounded-[1.5rem] border border-border/80 bg-card px-6 py-12 text-center"
+			>
 				<p class="text-lg font-bold">Записів ще немає</p>
-				<p class="mt-2 text-sm text-muted-foreground">Перша позначка або запис їжі з’явиться тут.</p>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Перша позначка або запис їжі з’явиться тут.
+				</p>
 				<NuxtLink to="/" class="mt-5 inline-block">
 					<Button class="h-11 rounded-full px-5">Додати сьогодні</Button>
 				</NuxtLink>
 			</div>
 
-			<article v-for="day in days" :key="day.date" class="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card">
-				<header class="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6">
+			<article
+				v-for="day in days"
+				:key="day.date"
+				class="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card"
+			>
+				<button
+					type="button"
+					class="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left sm:px-6"
+					:aria-expanded="expandedDates.has(day.date)"
+					:aria-controls="`history-day-${day.date}`"
+					@click="toggleDay(day.date)"
+				>
 					<div>
-						<p class="text-xs font-medium text-muted-foreground">{{ day.relativeLabel }}</p>
+						<p class="text-xs font-medium text-muted-foreground">
+							{{ day.relativeLabel }}
+						</p>
 						<h2 class="mt-0.5 text-lg font-bold">{{ day.label }}</h2>
 					</div>
-					<span class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">
-						{{ day.entries.length }} {{ day.entries.length === 1 ? 'запис' : 'записи' }}
+					<span class="flex shrink-0 items-center gap-3">
+						<span
+							class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground"
+						>
+							{{ day.entries.length }}
+							{{ day.entries.length === 1 ? 'запис' : 'записи' }}
+						</span>
+						<span
+							class="text-sm text-muted-foreground transition-transform"
+							:class="{ 'rotate-180': expandedDates.has(day.date) }"
+							aria-hidden="true"
+							>⌄</span
+						>
 					</span>
-				</header>
+				</button>
 
-				<div class="grid md:grid-cols-[minmax(0,1fr)_18rem]">
+				<div
+					v-if="expandedDates.has(day.date)"
+					:id="`history-day-${day.date}`"
+					class="grid md:grid-cols-[minmax(0,1fr)_18rem]"
+				>
 					<ul v-if="day.entries.length" class="divide-y divide-border/70">
-						<li v-for="entry in day.entries" :key="entry.id" class="flex items-center gap-3 px-5 py-4 sm:px-6">
+						<li
+							v-for="entry in day.entries"
+							:key="entry.id"
+							class="flex items-center gap-3 px-5 py-4 sm:px-6"
+						>
 							<span
 								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold"
-								:class="entry.kind === 'food' ? 'bg-[#EDF1DC] text-[#5D6B35]' : 'bg-[#E5F2F4] text-[#2F6F7A]'"
+								:class="
+									entry.kind === 'food'
+										? 'bg-[#EDF1DC] text-[#5D6B35]'
+										: 'bg-[#E5F2F4] text-[#2F6F7A]'
+								"
 								aria-hidden="true"
 							>
 								{{ entry.kind === 'food' ? 'Ї' : 'Н' }}
 							</span>
 							<div class="min-w-0 flex-1">
 								<p class="truncate font-semibold">{{ entry.title }}</p>
-								<p class="mt-0.5 truncate text-sm text-muted-foreground">{{ entry.detail }}</p>
+								<p class="mt-0.5 truncate text-sm text-muted-foreground">
+									{{ entry.detail }} · {{ entry.amount }}
+								</p>
 							</div>
-							<p class="shrink-0 text-sm font-bold">{{ entry.amount }}</p>
+							<div class="shrink-0 text-right">
+								<p class="text-sm font-bold">
+									<time :datetime="entry.createdAt">{{
+										formatLocalTime(entry.createdAt)
+									}}</time>
+								</p>
+								<div class="mt-1 flex justify-end gap-3">
+									<button
+										v-if="entry.editable"
+										type="button"
+										class="text-xs font-semibold text-primary underline-offset-2 hover:underline"
+										:disabled="entryPending"
+										@click="openEdit(entry)"
+									>
+										Исправить
+									</button>
+									<button
+										type="button"
+										class="text-xs font-semibold text-destructive underline-offset-2 hover:underline"
+										:disabled="entryPending"
+										@click="deleteEntry(entry)"
+									>
+										Удалить
+									</button>
+								</div>
+							</div>
 						</li>
 					</ul>
 					<div v-else class="px-5 py-7 text-sm text-muted-foreground sm:px-6">
 						Записів їжі або води немає.
 					</div>
 
-					<div class="border-t border-border/70 p-5 md:border-t-0 md:border-l md:p-6">
+					<div
+						class="border-t border-border/70 p-5 md:border-t-0 md:border-l md:p-6"
+					>
 						<p class="text-sm font-bold">Самопочуття</p>
 						<div class="mt-3 space-y-2">
 							<div
 								v-for="period in moodPeriods"
 								:key="period.key"
 								class="flex items-center justify-between rounded-xl border px-3 py-2.5"
-								:class="day.moods[period.key] ? 'border-border/80 bg-white' : 'border-dashed border-border/80 bg-muted/40'"
+								:class="
+									day.moods[period.key]
+										? 'border-border/80 bg-white'
+										: 'border-dashed border-border/80 bg-muted/40'
+								"
 							>
-								<span class="text-sm text-muted-foreground">{{ period.label }}</span>
-								<span v-if="day.moods[period.key]" class="flex items-center gap-2 text-sm font-bold">
-									<span class="text-lg">{{ day.moods[period.key]!.emoji }}</span>
+								<span class="text-sm text-muted-foreground">
+									{{ period.label }}
+								</span>
+								<span
+									v-if="day.moods[period.key]"
+									class="flex items-center gap-2 text-sm font-bold"
+								>
+									<span class="text-lg">{{
+										day.moods[period.key]!.emoji
+									}}</span>
 									{{ day.moods[period.key]!.label }}
 								</span>
-								<span v-else class="text-xs text-muted-foreground">Не позначено</span>
+								<span v-else class="text-xs text-muted-foreground"
+									>Не позначено</span
+								>
 							</div>
 						</div>
 					</div>
@@ -125,8 +325,46 @@
 
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue'
+import { toast } from 'vue-sonner'
+import { formatLocalTime } from '~/src/shared/date'
+import { scaleNutrition } from '~/src/features/dashboard/targets'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '~/src/shared/ui/dialog'
 
 type PeriodKey = 'morning' | 'day' | 'evening'
+
+interface FoodProduct {
+	name: string
+	quantity: number
+	chars: {
+		unit?: 'g' | 'ml' | 'piece'
+		calories: number
+		proteins: number
+		fats: number
+		carbs: number
+		vitamins?: Record<string, number>
+		nutritionKnown?: boolean
+	}
+}
+
+interface FoodLog {
+	id: string
+	product_id: string | null
+	quantity: number
+	calories: number
+	proteins: number
+	fats: number
+	carbs: number
+	vitamins: Record<string, number> | null
+	date: string
+	created_at: string
+	products: FoodProduct | null
+}
 
 interface HistoryEntry {
 	id: string
@@ -135,6 +373,11 @@ interface HistoryEntry {
 	detail: string
 	amount: string
 	createdAt: string
+	editable: boolean
+	unit?: string
+	quantity?: number
+	volumeMl?: number
+	product?: FoodProduct | null
 }
 
 interface MoodValue {
@@ -143,22 +386,63 @@ interface MoodValue {
 	label: string
 }
 
+interface MoodEntry {
+	id: string
+	value: MoodValue
+	recorded_at: string
+}
+
+interface DrinkLog {
+	id: string
+	kind: string
+	volume_ml: number
+	recorded_at: string
+	entry_date: string | null
+}
+
+interface HistorySnapshot {
+	cachedAt: number
+	foodLogs: FoodLog[]
+	drinkLogs: DrinkLog[]
+	moodEntries: MoodEntry[]
+}
+
 interface HistoryDay {
 	date: string
 	label: string
 	relativeLabel: string
 	entries: HistoryEntry[]
-	moods: Partial<Record<PeriodKey, { emoji: string; label: string }>>
+	moods: Partial<
+		Record<PeriodKey, { emoji: string; label: string; recordedAt: string }>
+	>
 }
 
+const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const userId = computed(() => user.value?.id ?? null)
 const loading = shallowRef(true)
+const refreshing = shallowRef(false)
 const error = shallowRef('')
-const foodLogs = shallowRef<any[]>([])
-const drinkLogs = shallowRef<any[]>([])
-const moodEntries = shallowRef<any[]>([])
+const entryPending = shallowRef(false)
+const editDialogOpen = shallowRef(false)
+const editingEntry = shallowRef<HistoryEntry | null>(null)
+const editQuantity = shallowRef<number | ''>('')
+const editVolume = shallowRef<number | ''>('')
+const editError = shallowRef('')
+const foodLogs = shallowRef<FoodLog[]>([])
+const drinkLogs = shallowRef<DrinkLog[]>([])
+const moodEntries = shallowRef<MoodEntry[]>([])
+const expandedDates = shallowRef<Set<string>>(new Set())
+let historyLoadGeneration = 0
+const historyCache = useState<Record<string, HistorySnapshot>>(
+	'history-cache',
+	() => ({}),
+)
+const dashboardCache = useState<Record<string, unknown>>(
+	'dashboard-cache',
+	() => ({}),
+)
 
 const moodPeriods: Array<{ key: PeriodKey; label: string }> = [
 	{ key: 'morning', label: 'Ранок' },
@@ -180,13 +464,25 @@ const guestPreviewDays = [
 		relativeLabel: 'Сьогодні',
 		label: 'пʼятниця, 21 листопада',
 		entries: [
-			{ icon: 'Ї', title: 'Вівсянка та банан', detail: 'Приклад запису їжі', amount: '320 ккал' },
-			{ icon: 'Н', title: 'Вода', detail: 'Приклад запису напою', amount: '300 мл' },
+			{
+				icon: 'Ї',
+				title: 'Вівсянка та банан',
+				detail: 'Приклад запису їжі',
+				amount: '320 ккал',
+				time: '08:15',
+			},
+			{
+				icon: 'Н',
+				title: 'Вода',
+				detail: 'Приклад запису напою',
+				amount: '300 мл',
+				time: '09:40',
+			},
 		],
 		moods: [
-			{ period: 'Ранок', emoji: '🙂', label: 'Добре' },
-			{ period: 'День', emoji: '😐', label: 'Звичайно' },
-			{ period: 'Вечір', emoji: '', label: 'Не позначено' },
+			{ period: 'Ранок', emoji: '🙂', label: 'Добре', time: '08:20' },
+			{ period: 'День', emoji: '😐', label: 'Звичайно', time: '13:10' },
+			{ period: 'Вечір', emoji: '', label: 'Не позначено', time: '' },
 		],
 	},
 ] as const
@@ -198,14 +494,28 @@ const days = computed<HistoryDay[]>(() => {
 		const date = String(log.date)
 		const entries = grouped.get(date) ?? []
 		const quantity = formatNumber(Number(log.quantity))
-		const unit = log.products?.chars?.unit === 'ml' ? 'мл' : log.products?.chars?.unit === 'piece' ? 'шт.' : 'г'
+		const unit =
+			log.products?.chars?.unit === 'ml'
+				? 'мл'
+				: log.products?.chars?.unit === 'piece'
+					? 'шт.'
+					: 'г'
+		const nutritionKnown = log.products?.chars?.nutritionKnown !== false
 		entries.push({
 			id: log.id,
 			kind: 'food',
 			title: log.products?.name ?? 'Продукт',
-			detail: `${quantity} ${unit} · ${formatNumber(Number(log.proteins))} г білка`,
-			amount: `${formatNumber(Number(log.calories))} ккал`,
+			detail: nutritionKnown
+				? `${quantity} ${unit} · ${formatNumber(Number(log.proteins))} г білка`
+				: `${quantity} ${unit} · Харчова цінність не вказана`,
+			amount: nutritionKnown
+				? `${formatNumber(Number(log.calories))} ккал`
+				: 'Склад не вказано',
 			createdAt: log.created_at,
+			editable: Boolean(log.product_id && log.products),
+			unit,
+			quantity: Number(log.quantity),
+			product: log.products,
 		})
 		grouped.set(date, entries)
 	}
@@ -221,11 +531,18 @@ const days = computed<HistoryDay[]>(() => {
 			detail: `${formatVolume(Number(drink.volume_ml))} мл`,
 			amount: `${formatVolume(Number(drink.volume_ml))} мл`,
 			createdAt: drink.recorded_at,
+			editable: true,
+			volumeMl: Number(drink.volume_ml),
 		})
 		grouped.set(date, entries)
 	}
 
-	const moodGrouped = new Map<string, Partial<Record<PeriodKey, { emoji: string; label: string }>>>()
+	const moodGrouped = new Map<
+		string,
+		Partial<
+			Record<PeriodKey, { emoji: string; label: string; recordedAt: string }>
+		>
+	>()
 	for (const entry of moodEntries.value) {
 		const value = entry.value as MoodValue
 		const date = localDateFromTimestamp(entry.recorded_at)
@@ -234,14 +551,12 @@ const days = computed<HistoryDay[]>(() => {
 		moods[value.period] = {
 			emoji: moodEmojis[value.mood] ?? '😐',
 			label: value.label,
+			recordedAt: entry.recorded_at,
 		}
 		moodGrouped.set(date, moods)
 	}
 
-	const dates = new Set([
-		...grouped.keys(),
-		...moodGrouped.keys(),
-	])
+	const dates = new Set([...grouped.keys(), ...moodGrouped.keys()])
 
 	return [...dates]
 		.sort((a, b) => b.localeCompare(a))
@@ -249,35 +564,61 @@ const days = computed<HistoryDay[]>(() => {
 			date,
 			label: formatDayLabel(date),
 			relativeLabel: relativeDayLabel(date),
-			entries: (grouped.get(date) ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+			entries: (grouped.get(date) ?? []).sort((a, b) =>
+				b.createdAt.localeCompare(a.createdAt),
+			),
 			moods: moodGrouped.get(date) ?? {},
 		}))
 })
 
-watch(userId, async (id) => {
-	loading.value = true
-	error.value = ''
-	if (!id) {
+watch(
+	userId,
+	async (id) => {
+		historyLoadGeneration++
+		loading.value = true
+		error.value = ''
+		expandedDates.value = new Set()
+		clearHistoryRecords()
+		if (!id) {
+			loading.value = false
+			return
+		}
+		await loadHistory(id)
+	},
+	{ immediate: true },
+)
+
+async function loadHistory(id: string, force = false) {
+	if (userId.value !== id) return
+	historyLoadGeneration++
+	const loadGeneration = historyLoadGeneration
+
+	const cached = historyCache.value[id]
+	if (!force && cached && Date.now() - cached.cachedAt < HISTORY_CACHE_TTL_MS) {
+		if (
+			userId.value !== id
+			|| historyLoadGeneration !== loadGeneration
+		) return
+		restoreHistorySnapshot(cached)
 		loading.value = false
-		foodLogs.value = []
-		drinkLogs.value = []
-		moodEntries.value = []
 		return
 	}
-	await loadHistory(id)
-	loading.value = false
-}, { immediate: true })
 
-async function loadHistory(id: string) {
+	if (force) refreshing.value = true
+	else loading.value = true
+	error.value = ''
+
 	const [foods, drinks, moods] = await Promise.all([
 		supabase
 			.from('logs')
-			.select('id, date, quantity, calories, proteins, fats, carbs, created_at, products(name, chars)')
+			.select(
+				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(name, quantity, chars)',
+			)
 			.eq('user_id', id)
 			.order('date', { ascending: false }),
 		supabase
 			.from('drinks')
-			.select('id, kind, volume_ml, recorded_at')
+			.select('id, kind, volume_ml, recorded_at, entry_date')
 			.eq('user_id', id)
 			.order('recorded_at', { ascending: false }),
 		supabase
@@ -288,14 +629,170 @@ async function loadHistory(id: string) {
 			.order('recorded_at', { ascending: false }),
 	])
 
+	if (
+		userId.value !== id
+		|| historyLoadGeneration !== loadGeneration
+	) return
+
 	if (foods.error || drinks.error || moods.error) {
 		error.value = 'Не вдалося завантажити журнал. Спробуйте оновити сторінку.'
+		clearHistoryRecords()
+		loading.value = false
+		refreshing.value = false
 		return
 	}
 
 	foodLogs.value = foods.data ?? []
-	drinkLogs.value = drinks.data ?? []
+	drinkLogs.value = (drinks.data ?? []).map((drink) => ({
+		...drink,
+		entry_date: drink.entry_date ?? null,
+	}))
 	moodEntries.value = moods.data ?? []
+	historyCache.value = {
+		...historyCache.value,
+		[id]: {
+			cachedAt: Date.now(),
+			foodLogs: [...foodLogs.value],
+			drinkLogs: [...drinkLogs.value],
+			moodEntries: [...moodEntries.value],
+		},
+	}
+	loading.value = false
+	refreshing.value = false
+}
+
+function clearHistoryRecords() {
+	foodLogs.value = []
+	drinkLogs.value = []
+	moodEntries.value = []
+}
+
+function restoreHistorySnapshot(snapshot: HistorySnapshot) {
+	foodLogs.value = snapshot.foodLogs
+	drinkLogs.value = snapshot.drinkLogs
+	moodEntries.value = snapshot.moodEntries
+}
+
+function refreshHistory() {
+	const id = userId.value
+	if (!id || refreshing.value) return
+	void loadHistory(id, true)
+}
+
+function toggleDay(date: string) {
+	const next = new Set(expandedDates.value)
+	if (next.has(date)) next.delete(date)
+	else next.add(date)
+	expandedDates.value = next
+}
+
+function openEdit(entry: HistoryEntry) {
+	editingEntry.value = entry
+	editQuantity.value = entry.quantity ?? ''
+	editVolume.value = entry.volumeMl ?? ''
+	editError.value = ''
+	editDialogOpen.value = true
+}
+
+async function saveEntry() {
+	const entry = editingEntry.value
+	const id = userId.value
+	if (!entry || !id || entryPending.value) return
+
+	entryPending.value = true
+	editError.value = ''
+	let saveError: { message: string } | null = null
+
+	if (entry.kind === 'food') {
+		const quantity = Number(editQuantity.value)
+		const product = entry.product
+		if (!product || !Number.isFinite(quantity) || quantity <= 0) {
+			editError.value = 'Введите количество больше нуля.'
+			entryPending.value = false
+			return
+		}
+		const nutrition = scaleNutrition(
+			product.chars,
+			quantity,
+			Number(product.quantity),
+		)
+		const vitamins = Object.fromEntries(
+			Object.entries(product.chars.vitamins ?? {}).map(([name, value]) => [
+				name,
+				(Number(value) * quantity) / Number(product.quantity),
+			]),
+		)
+		const result = await supabase
+			.from('logs')
+			.update({ quantity, ...nutrition, vitamins })
+			.eq('id', entry.id)
+			.eq('user_id', id)
+		saveError = result.error
+	} else {
+		const volume = Number(editVolume.value)
+		if (!Number.isFinite(volume) || volume <= 0) {
+			editError.value = 'Введите объём больше нуля.'
+			entryPending.value = false
+			return
+		}
+		const result = await supabase
+			.from('drinks')
+			.update({ volume_ml: volume })
+			.eq('id', entry.id)
+			.eq('user_id', id)
+		saveError = result.error
+	}
+
+	entryPending.value = false
+	if (userId.value !== id) return
+	if (saveError) {
+		editError.value = 'Не удалось сохранить изменения. Попробуйте ещё раз.'
+		return
+	}
+
+	editDialogOpen.value = false
+	editingEntry.value = null
+	invalidateDashboardCache(id)
+	await loadHistory(id, true)
+	toast.success('Запись обновлена.')
+}
+
+async function deleteEntry(entry: HistoryEntry) {
+	const id = userId.value
+	if (!id || entryPending.value) return
+	if (
+		!window.confirm(
+			`Удалить запись «${entry.title}»? Это действие нельзя отменить.`,
+		)
+	)
+		return
+
+	entryPending.value = true
+	error.value = ''
+	const table = entry.kind === 'food' ? 'logs' : 'drinks'
+	const { error: deleteError } = await supabase
+		.from(table)
+		.delete()
+		.eq('id', entry.id)
+		.eq('user_id', id)
+	entryPending.value = false
+
+	if (userId.value !== id) return
+	if (deleteError) {
+		error.value = 'Не удалось удалить запись. Попробуйте ещё раз.'
+		return
+	}
+
+	invalidateDashboardCache(id)
+	await loadHistory(id, true)
+	toast.success('Запись удалена.')
+}
+
+function invalidateDashboardCache(id: string) {
+	for (const key of Object.keys(dashboardCache.value)) {
+		if (key.startsWith(`${id}:`)) delete dashboardCache.value[key]
+	}
+	delete historyCache.value[id]
 }
 
 function localDateFromTimestamp(timestamp: string) {
@@ -308,7 +805,9 @@ function localDateFromTimestamp(timestamp: string) {
 		month: '2-digit',
 		day: '2-digit',
 	}).formatToParts(date)
-	const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+	const values = Object.fromEntries(
+		parts.map((part) => [part.type, part.value]),
+	)
 	return `${values.year}-${values.month}-${values.day}`
 }
 
@@ -327,19 +826,28 @@ function relativeDayLabel(date: string) {
 	if (!today) return ''
 	const todayDate = new Date(`${today}T12:00:00+02:00`)
 	const targetDate = new Date(`${date}T12:00:00+02:00`)
-	const difference = Math.round((todayDate.getTime() - targetDate.getTime()) / 86400000)
+	const difference = Math.round(
+		(todayDate.getTime() - targetDate.getTime()) / 86400000,
+	)
 	return difference === 1 ? 'Вчора' : ''
 }
 
 function drinkKindLabel(kind: string) {
-	return { water: 'Вода', coffee: 'Кава', tea: 'Чай', other: 'Напій' }[kind] ?? 'Напій'
+	return (
+		{ water: 'Вода', coffee: 'Кава', tea: 'Чай', other: 'Напій' }[kind] ??
+		'Напій'
+	)
 }
 
 function formatNumber(value: number) {
-	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(
+		value,
+	)
 }
 
 function formatVolume(value: number) {
-	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(
+		value,
+	)
 }
 </script>

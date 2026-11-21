@@ -15,4 +15,32 @@ describe('dashboard target calculations', () => {
 			100
 		)).toEqual({ calories: 150, proteins: 7.5, fats: 3, carbs: 15 })
 	})
+
+	it('scales proportionally when the reference quantity is 1', () => {
+		const nutrition = { calories: 100, proteins: 5, fats: 2, carbs: 10 }
+
+		expect(scaleNutrition(nutrition, 2, 1)).toEqual({
+			calories: 200,
+			proteins: 10,
+			fats: 4,
+			carbs: 20,
+		})
+		expect(scaleNutrition(nutrition, 0.5, 1)).toEqual({
+			calories: 50,
+			proteins: 2.5,
+			fats: 1,
+			carbs: 5,
+		})
+	})
+
+	it('does not scale with missing or invalid reference values', () => {
+		const nutrition = { calories: 100, proteins: 5, fats: 2, carbs: 10 }
+
+		expect(scaleNutrition(nutrition, 1, 0)).toEqual({
+			calories: 0,
+			proteins: 0,
+			fats: 0,
+			carbs: 0,
+		})
+	})
 })

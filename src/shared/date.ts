@@ -33,3 +33,15 @@ export function formatLocalHour(
 	if (!hour || !period) throw new Error('Unable to format the local hour.')
 	return `${hour}${period.toUpperCase()}`
 }
+
+export function formatLocalTime(
+	date: Date | string,
+	timeZone = 'Europe/Kyiv'
+): string {
+	return new Intl.DateTimeFormat('uk-UA', {
+		timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+	}).format(typeof date === 'string' ? new Date(date) : date)
+}

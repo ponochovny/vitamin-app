@@ -48,9 +48,12 @@
 				</DialogHeader>
 				<QuickLogForm
 					v-if="userId"
+					:key="quickLogFormVersion"
 					:products="products"
+					:recent-foods="recentFoods"
 					:pending="savePending"
 					@food="logFood"
+					@create-food="createAndLogFood"
 					@drink="logDrink"
 				/>
 			</DialogContent>
@@ -71,6 +74,47 @@
 					:pending="targetPending"
 					@save="saveTargets"
 				/>
+			</DialogContent>
+		</Dialog>
+		<Dialog v-model:open="moodDialogOpen">
+			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
+				<DialogHeader v-if="selectedWellbeingPeriod">
+					<DialogTitle>{{ selectedWellbeingPeriod.question }}</DialogTitle>
+					<DialogDescription>
+						Обери настрій за період «{{
+							selectedWellbeingPeriod.label.toLowerCase()
+						}}». Вибір можна змінити пізніше.
+					</DialogDescription>
+				</DialogHeader>
+				<div
+					v-if="selectedWellbeingPeriod"
+					class="grid grid-cols-5 gap-2"
+					role="group"
+					aria-label="Варіанти настрою"
+				>
+					<button
+						v-for="option in moodOptions"
+						:key="option.mood"
+						type="button"
+						:aria-label="option.label"
+						:aria-pressed="
+							wellbeingByPeriod[selectedWellbeingPeriod.key]?.value.mood ===
+							option.mood
+						"
+						:disabled="wellbeingPending"
+						class="flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border text-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+						:class="
+							wellbeingByPeriod[selectedWellbeingPeriod.key]?.value.mood ===
+							option.mood
+								? 'border-primary bg-primary text-primary-foreground'
+								: 'border-border bg-white hover:border-primary/40 hover:bg-primary/[0.03]'
+						"
+						@click="saveSelectedMood(option)"
+					>
+						<span class="text-3xl leading-none">{{ option.emoji }}</span>
+						<span class="text-xs font-semibold">{{ option.label }}</span>
+					</button>
+				</div>
 			</DialogContent>
 		</Dialog>
 
@@ -152,41 +196,6 @@
 					</div>
 				</div>
 			</div>
-
-			<div
-				class="relative overflow-hidden rounded-[1.75rem] border border-border/80 bg-card p-5 sm:p-6"
-			>
-				<div class="select-none blur-[5px]" aria-hidden="true">
-					<div class="mb-5 h-6 w-44 rounded bg-muted" />
-					<div class="grid gap-3 md:grid-cols-3">
-						<div
-							v-for="period in ['Ранок', 'День', 'Вечір']"
-							:key="period"
-							class="rounded-2xl border border-border/80 p-4"
-						>
-							<p class="font-bold">{{ period }}</p>
-							<div class="mt-4 flex justify-between">
-								<span
-									v-for="emoji in ['😞', '😕', '😐', '🙂', '😄']"
-									:key="emoji"
-									class="text-xl"
-									>{{ emoji }}</span
-								>
-							</div>
-						</div>
-					</div>
-				</div>
-				<NuxtLink
-					to="/signin"
-					class="absolute inset-0 flex items-center justify-center bg-white/20 px-5 text-center"
-				>
-					<span
-						class="rounded-full border border-primary/15 bg-white px-5 py-3 text-sm font-bold text-primary shadow-lg"
-					>
-						Увійдіть для позначення настрою
-					</span>
-				</NuxtLink>
-			</div>
 		</section>
 
 		<div v-else class="space-y-5">
@@ -213,234 +222,211 @@
 					</button>
 				</div>
 
-				<div class="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Калорії</p>
-							<p class="text-xs font-bold text-secondary">
-								{{
-									Math.round(progress(nutrition.calories, targets.calories))
-								}}%
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{ formatNumber(nutrition.calories) }}
-							<span class="text-xs font-normal text-white/65"
-								>/ {{ formatNumber(targets.calories) }} ккал</span
-							>
-						</p>
-						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
-							<div
-								class="h-full rounded-full bg-secondary"
-								:style="{
-									width: `${progress(nutrition.calories, targets.calories)}%`,
-								}"
-							/>
-						</div>
-					</article>
-
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Білки</p>
-							<p class="text-xs font-bold text-secondary">
-								{{
-									Math.round(progress(nutrition.proteins, targets.proteins))
-								}}%
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{ formatNumber(nutrition.proteins) }}
-							<span class="text-xs font-normal text-white/65"
-								>/ {{ formatNumber(targets.proteins) }} г</span
-							>
-						</p>
-						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
-							<div
-								class="h-full rounded-full bg-secondary"
-								:style="{
-									width: `${progress(nutrition.proteins, targets.proteins)}%`,
-								}"
-							/>
-						</div>
-					</article>
-
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Жири</p>
-							<p class="text-xs font-bold text-secondary">
-								{{ Math.round(progress(nutrition.fats, targets.fats)) }}%
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{ formatNumber(nutrition.fats) }}
-							<span class="text-xs font-normal text-white/65"
-								>/ {{ formatNumber(targets.fats) }} г</span
-							>
-						</p>
-						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
-							<div
-								class="h-full rounded-full bg-secondary"
-								:style="{ width: `${progress(nutrition.fats, targets.fats)}%` }"
-							/>
-						</div>
-					</article>
-
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Вуглеводи</p>
-							<p class="text-xs font-bold text-secondary">
-								{{ Math.round(progress(nutrition.carbs, targets.carbs)) }}%
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{ formatNumber(nutrition.carbs) }}
-							<span class="text-xs font-normal text-white/65"
-								>/ {{ formatNumber(targets.carbs) }} г</span
-							>
-						</p>
-						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
-							<div
-								class="h-full rounded-full bg-secondary"
-								:style="{
-									width: `${progress(nutrition.carbs, targets.carbs)}%`,
-								}"
-							/>
-						</div>
-					</article>
-
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Вода</p>
-							<p class="text-xs font-bold text-secondary">
-								{{ Math.round(progress(pureWater, targets.beveragesMl)) }}%
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{ formatVolume(pureWater) }}
-							<span class="text-xs font-normal text-white/65"
-								>/ {{ formatVolume(targets.beveragesMl) }} мл</span
-							>
-						</p>
-						<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
-							<div
-								class="h-full rounded-full bg-secondary"
-								:style="{
-									width: `${progress(pureWater, targets.beveragesMl)}%`,
-								}"
-							/>
-						</div>
-					</article>
-
-					<article class="rounded-2xl bg-white/10 p-3.5 sm:p-4">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">Настрій</p>
-							<p class="text-xs font-bold text-secondary">
-								{{ completedWellbeingCount }}/3
-							</p>
-						</div>
-						<p class="mt-2 text-lg font-bold leading-none">
-							{{
-								remainingWellbeingCount
-									? `Ще ${remainingWellbeingCount}`
-									: 'Усе позначено'
-							}}
-						</p>
-						<p class="mt-2 text-xs text-white/65">Ранок · День · Вечір</p>
-					</article>
-				</div>
-			</section>
-
-			<section
-				class="rounded-[1.75rem] border border-border/80 bg-card p-5 shadow-[0_12px_40px_rgba(32,52,44,0.05)] sm:p-6"
-				aria-labelledby="wellbeing-heading"
-			>
-				<div class="mb-5 flex items-start justify-between gap-4">
-					<div>
-						<p class="text-sm font-medium text-muted-foreground">
-							Коротка перевірка
-						</p>
-						<h2 id="wellbeing-heading" class="mt-1 text-xl font-bold">
-							Як ти себе почуваєш?
-						</h2>
-					</div>
-					<span
-						class="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground"
-					>
-						{{ completedWellbeingCount }}/3
-					</span>
-				</div>
-
-				<div class="grid gap-3 md:grid-cols-3">
+				<div
+					class="mt-6 grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
+					aria-label="Калорії та нутрієнти"
+				>
 					<article
-						v-for="period in wellbeingPeriods"
-						:key="period.key"
-						class="rounded-2xl border p-4"
-						:class="
-							period.key === currentPeriod
-								? 'border-primary/35 bg-primary/[0.035]'
-								: 'border-border/80 bg-white'
-						"
+						class="goal-tile flex items-center gap-4 rounded-2xl bg-white/10 p-4 sm:p-5"
 					>
-						<div class="mb-3 flex items-center justify-between">
-							<div>
-								<p class="font-bold">{{ period.label }}</p>
-								<p class="mt-0.5 text-xs text-muted-foreground">
-									{{ period.hint }}
-								</p>
-							</div>
-							<span
-								v-if="period.key === currentPeriod"
-								class="rounded-full bg-secondary px-2 py-1 text-[11px] font-bold text-secondary-foreground"
-							>
-								Зараз
+						<div
+							class="goal-ring goal-ring--large"
+							:style="ringStyle(nutrition.nutritionUnknown ? 0 : progress(nutrition.calories, targets.calories))"
+							role="progressbar"
+							:aria-valuenow="
+								nutrition.nutritionUnknown
+									? 0
+									: Math.round(progress(nutrition.calories, targets.calories))
+							"
+							aria-valuemin="0"
+							aria-valuemax="100"
+							:aria-label="
+								nutrition.nutritionUnknown
+									? 'Калорії невідомі'
+									: `Калорії: ${formatNumber(nutrition.calories)} з ${formatNumber(targets.calories)} ккал`
+							"
+						>
+							<span class="goal-ring__content">
+								<strong>{{ nutrition.nutritionUnknown ? '—' : formatNumber(nutrition.calories) }}</strong>
+								<small>ккал</small>
 							</span>
 						</div>
-						<div
-							class="grid grid-cols-5 gap-1.5"
-							role="radiogroup"
-							:aria-label="`Самопочуття ${period.label.toLowerCase()}ом`"
+						<div>
+							<p class="text-sm font-semibold text-white/75">Калорії</p>
+							<p class="mt-2 text-base font-bold leading-tight">
+								{{ nutrition.nutritionUnknown ? 'Пищевая ценность не указана' : `з ${formatNumber(targets.calories)} ккал` }}
+							</p>
+							<p class="mt-1 text-xs text-white/65">
+								{{
+									nutrition.nutritionUnknown
+										? 'Невідомо'
+										: `${Math.round(progress(nutrition.calories, targets.calories))}% цілі`
+								}}
+							</p>
+						</div>
+					</article>
+
+					<div class="grid grid-cols-3 gap-2">
+						<article
+							v-for="macro in macros"
+							:key="macro.key"
+							class="goal-tile flex flex-col items-center justify-center rounded-2xl bg-white/10 px-2 py-3 text-center sm:px-3"
 						>
-							<button
-								v-for="option in moodOptions"
-								:key="option.mood"
-								type="button"
-								role="radio"
-								:aria-checked="
-									wellbeingByPeriod[period.key]?.value.mood === option.mood
+							<div
+								class="goal-ring goal-ring--small"
+								:style="
+									ringStyle(nutrition.nutritionUnknown ? 0 : progress(nutrition[macro.key], targets[macro.key]))
 								"
-								:aria-label="`${option.label}, ${period.label}`"
-								:disabled="wellbeingPending"
-								class="flex min-h-14 flex-col items-center justify-center rounded-xl border text-center transition-colors"
-								:class="
-									wellbeingByPeriod[period.key]?.value.mood === option.mood
-										? 'border-primary bg-primary text-primary-foreground'
-										: 'border-border bg-white hover:border-primary/40'
+								role="progressbar"
+								:aria-valuenow="
+									nutrition.nutritionUnknown
+										? 0
+										: Math.round(progress(nutrition[macro.key], targets[macro.key]))
 								"
-								:title="option.label"
-								@click="saveMood(period.key, option)"
+								aria-valuemin="0"
+								aria-valuemax="100"
+								:aria-label="
+									nutrition.nutritionUnknown
+										? `${macro.label}: пищевая ценность не указана`
+										: `${macro.label}: ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів`
+								"
 							>
-								<span class="text-xl leading-none">{{ option.emoji }}</span>
+								<span class="goal-ring__content">
+									<strong>{{ nutrition.nutritionUnknown ? '—' : formatNumber(nutrition[macro.key]) }}</strong>
+									<small>г</small>
+								</span>
+							</div>
+							<p class="mt-2 text-xs font-semibold text-white/80">
+								{{ macro.label }}
+							</p>
+							<p class="mt-1 text-xs font-bold">
+								з {{ formatNumber(targets[macro.key]) }} г
+							</p>
+							<p class="mt-0.5 text-[11px] text-white/65">
+								{{
+									Math.round(
+										progress(nutrition[macro.key], targets[macro.key]),
+									)
+								}}% цілі
+							</p>
+						</article>
+					</div>
+				</div>
+
+				<div class="mt-3 grid gap-3 sm:grid-cols-2">
+					<article
+						class="goal-tile goal-tile--water flex items-center gap-4 rounded-2xl bg-[#DDF0F0] p-4 text-[#203F43] sm:p-5"
+					>
+						<div
+							class="shrink-0"
+							role="progressbar"
+							:aria-valuenow="
+								Math.round(progress(pureWater, targets.beveragesMl))
+							"
+							aria-valuemin="0"
+							aria-valuemax="100"
+							:aria-label="`Вода: ${formatVolume(pureWater)} з ${formatVolume(targets.beveragesMl)} мілілітрів`"
+						>
+							<svg viewBox="0 0 80 96" class="h-24 w-20" aria-hidden="true">
+								<defs>
+									<clipPath id="water-drop-mask">
+										<path
+											d="M40 4C34 15 12 38 12 57c0 16 12.5 29 28 29s28-13 28-29C68 38 46 15 40 4Z"
+										/>
+									</clipPath>
+								</defs>
+								<path
+									d="M40 4C34 15 12 38 12 57c0 16 12.5 29 28 29s28-13 28-29C68 38 46 15 40 4Z"
+									fill="#C4E1E2"
+								/>
+								<path
+									:d="
+										waterSurfacePath(progress(pureWater, targets.beveragesMl))
+									"
+									clip-path="url(#water-drop-mask)"
+									fill="#3D858D"
+								/>
+								<path
+									d="M40 4C34 15 12 38 12 57c0 16 12.5 29 28 29s28-13 28-29C68 38 46 15 40 4Z"
+									fill="none"
+									stroke="#8DBFC2"
+									stroke-width="2"
+								/>
+								<path
+									d="M27 48c2-7 6-13 10-19"
+									fill="none"
+									stroke="#FFFFFF"
+									stroke-linecap="round"
+									stroke-width="3"
+									opacity=".75"
+								/>
+							</svg>
+						</div>
+						<div class="min-w-0">
+							<p class="text-sm font-bold text-[#2F6F7A]">Вода</p>
+							<p class="mt-1 flex items-baseline gap-1">
+								<strong class="text-3xl font-bold tracking-[-0.04em]">
+									{{ formatVolume(pureWater) }}
+								</strong>
+								<span class="text-sm font-semibold text-[#52777B]">мл</span>
+							</p>
+							<p class="mt-2 text-xs text-[#52777B]">
+								Ціль {{ formatVolume(targets.beveragesMl) }} мл
+							</p>
+							<p class="mt-1 text-xs font-bold text-[#2F6F7A]">
+								{{ Math.round(progress(pureWater, targets.beveragesMl)) }}%
+								виконано
+							</p>
+						</div>
+					</article>
+
+					<article class="goal-tile rounded-2xl bg-white/10 p-4">
+						<div class="flex items-start justify-between gap-3">
+							<div>
+								<p class="text-sm font-semibold text-white/75">Настрій</p>
+								<p class="mt-1 text-lg font-bold">
+									{{ completedWellbeingCount }} з 3 позначено
+								</p>
+							</div>
+							<span class="text-xs text-white/65">
+								{{
+									remainingWellbeingCount
+										? `Ще ${remainingWellbeingCount}`
+										: 'Готово на сьогодні'
+								}}
+							</span>
+						</div>
+						<div class="mt-3 flex gap-2">
+							<button
+								v-for="period in wellbeingPeriods"
+								:key="period.key"
+								type="button"
+								class="goal-tile flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-xl bg-white/10 px-2 py-2.5 text-center transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+								:aria-label="`${period.label}: ${moodOptions.find((option) => option.mood === wellbeingByPeriod[period.key]?.value.mood)?.label ?? 'не позначено'}. Обрати настрій`"
+								@click="openMoodPicker(period.key)"
+							>
+								<span class="text-xl leading-none">{{
+									moodOptions.find(
+										(option) =>
+											option.mood === wellbeingByPeriod[period.key]?.value.mood,
+									)?.emoji || '·'
+								}}</span>
+								<span class="text-xs font-semibold">{{ period.label }}</span>
+								<span class="max-w-full truncate text-[11px] text-white/65">{{
+									moodOptions.find(
+										(option) =>
+											option.mood === wellbeingByPeriod[period.key]?.value.mood,
+									)?.label || 'Позначити'
+								}}</span>
 							</button>
 						</div>
-						<p class="mt-2 min-h-5 text-center text-xs text-muted-foreground">
-							{{
-								moodOptions.find(
-									(option) =>
-										option.mood === wellbeingByPeriod[period.key]?.value.mood,
-								)?.label || 'Оберіть стан'
-							}}
-						</p>
 					</article>
 				</div>
 			</section>
 
-			<MealReminderSettings :user-id="userId" />
-
-			<div
-				class="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.65fr)]"
-			>
+			<div class="grid gap-5">
 				<section
-					class="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card"
+					class="overflow-hidden rounded-3xl border border-border/80 bg-card"
 					aria-labelledby="records-heading"
 				>
 					<div
@@ -500,7 +486,9 @@
 								<p class="mt-1 text-sm font-bold">
 									{{
 										record.kind === 'food'
-											? `${formatNumber(record.calories)} ккал`
+											? record.nutritionKnown
+												? `${formatNumber(record.calories)} ккал`
+												: 'Состав не указан'
 											: `${formatVolume(record.volumeMl)} мл`
 									}}
 								</p>
@@ -508,49 +496,6 @@
 						</li>
 					</ul>
 				</section>
-
-				<aside class="space-y-5">
-					<article
-						class="rounded-[1.5rem] border border-border/80 bg-card p-4"
-						aria-label="Енергія за день"
-					>
-						<p class="text-sm font-semibold text-muted-foreground">Енергія</p>
-						<p class="mt-3 text-[1.7rem] leading-none font-bold">
-							{{ formatNumber(nutrition.calories) }}
-						</p>
-						<p class="mt-1 text-xs text-muted-foreground">
-							з {{ formatNumber(targets.calories) }} ккал
-						</p>
-					</article>
-
-					<section
-						class="rounded-[1.5rem] border border-border/80 bg-card p-5"
-						aria-label="Нутрієнти за день"
-					>
-						<h2 class="mb-4 font-bold">Нутрієнти</h2>
-						<div class="space-y-4">
-							<div v-for="macro in macros" :key="macro.key">
-								<div class="mb-1.5 flex items-baseline justify-between gap-3">
-									<p class="text-sm text-muted-foreground">{{ macro.label }}</p>
-									<p class="text-sm font-bold">
-										{{ formatNumber(nutrition[macro.key]) }}
-										<span class="font-normal text-muted-foreground"
-											>/ {{ formatNumber(targets[macro.key]) }} г</span
-										>
-									</p>
-								</div>
-								<div class="h-1.5 overflow-hidden rounded-full bg-muted">
-									<div
-										class="h-full rounded-full bg-primary"
-										:style="{
-											width: `${progress(nutrition[macro.key], targets[macro.key])}%`,
-										}"
-									/>
-								</div>
-							</div>
-						</div>
-					</section>
-				</aside>
 			</div>
 		</div>
 	</main>
@@ -562,7 +507,7 @@ import { toast } from 'vue-sonner'
 import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
-import MealReminderSettings from '~/src/features/reminders/MealReminderSettings.vue'
+import { getRecentFoods } from '~/src/features/dashboard/diary'
 import {
 	Dialog,
 	DialogContent,
@@ -582,6 +527,7 @@ interface Product {
 	id: string
 	name: string
 	quantity: number
+	idempotencyKey?: string
 	chars: {
 		calories: number
 		proteins: number
@@ -589,6 +535,7 @@ interface Product {
 		carbs: number
 		vitamins?: Record<string, number>
 		unit?: 'g' | 'ml' | 'piece'
+		nutritionKnown?: boolean
 	}
 }
 
@@ -601,7 +548,10 @@ interface FoodLog {
 	fats: number
 	carbs: number
 	created_at: string
-	products: { name: string; chars: { unit?: 'g' | 'ml' | 'piece' } } | null
+	products: {
+		name: string
+		chars: { unit?: 'g' | 'ml' | 'piece'; nutritionKnown?: boolean }
+	} | null
 }
 
 interface DrinkLog {
@@ -611,6 +561,11 @@ interface DrinkLog {
 	created_at: string
 }
 
+interface RecentFood {
+	productId: string
+	quantity: number
+}
+
 interface DiaryRecord {
 	id: string
 	kind: 'food' | 'drink'
@@ -618,7 +573,17 @@ interface DiaryRecord {
 	detail: string
 	calories: number
 	volumeMl: number
+	nutritionKnown: boolean
 	createdAt: string
+}
+
+interface NewFoodEntry {
+	name: string
+	unit: 'g' | 'ml' | 'piece'
+	referenceQuantity: number
+	quantity: number
+	nutrition: { calories: number; proteins: number; fats: number; carbs: number } | null
+	idempotencyKey: string
 }
 
 interface WellbeingEntry {
@@ -633,12 +598,15 @@ interface WellbeingEntry {
 interface DashboardSnapshot {
 	cachedAt: number
 	products: Product[]
+	recentFoods: RecentFood[]
 	foodLogs: FoodLog[]
 	drinkLogs: DrinkLog[]
 	wellbeingEntries: WellbeingEntry[]
 	targets: DailyTargets
 	targetPreset: TargetPreset
 }
+
+type WellbeingPeriodKey = 'morning' | 'day' | 'evening'
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
@@ -647,12 +615,16 @@ const userId = computed(() => user.value?.id ?? null)
 const loading = shallowRef(true)
 const refreshing = shallowRef(false)
 const savePending = shallowRef(false)
+const quickLogFormVersion = shallowRef(0)
 const targetPending = shallowRef(false)
 const quickLogOpen = shallowRef(false)
 const targetsOpen = shallowRef(false)
+const moodDialogOpen = shallowRef(false)
+const selectedMoodPeriod = shallowRef<WellbeingPeriodKey | null>(null)
 const error = shallowRef('')
 const notice = shallowRef('')
 const products = shallowRef<Product[]>([])
+const recentFoods = shallowRef<RecentFood[]>([])
 const foodLogs = shallowRef<FoodLog[]>([])
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
@@ -663,6 +635,7 @@ const dashboardCache = useState<Record<string, DashboardSnapshot>>(
 	'dashboard-cache',
 	() => ({}),
 )
+const historyCache = useState<Record<string, unknown>>('history-cache', () => ({}))
 
 watch(error, (message) => {
 	if (message) {
@@ -691,9 +664,9 @@ const moodOptions = [
 ] as const
 
 const wellbeingPeriods = [
-	{ key: 'morning', label: 'Ранок', hint: 'Як прокинувся?' },
-	{ key: 'day', label: 'День', hint: 'Як ти зараз?' },
-	{ key: 'evening', label: 'Вечір', hint: 'Як пройшов день?' },
+	{ key: 'morning', label: 'Ранок', question: 'Як прокинувся?' },
+	{ key: 'day', label: 'День', question: 'Як минає день?' },
+	{ key: 'evening', label: 'Вечір', question: 'Як пройшов день?' },
 ] as const
 
 const guestGoalPreview = [
@@ -707,13 +680,25 @@ const guestGoalPreview = [
 
 const nutrition = computed(() =>
 	foodLogs.value.reduce(
-		(total, entry) => ({
-			calories: total.calories + Number(entry.calories || 0),
-			proteins: total.proteins + Number(entry.proteins || 0),
-			fats: total.fats + Number(entry.fats || 0),
-			carbs: total.carbs + Number(entry.carbs || 0),
-		}),
-		{ calories: 0, proteins: 0, fats: 0, carbs: 0 },
+		(total, entry) => {
+			if (entry.products?.chars.nutritionKnown === false) {
+				return { ...total, nutritionUnknown: true }
+			}
+			return {
+				calories: total.calories + Number(entry.calories || 0),
+				proteins: total.proteins + Number(entry.proteins || 0),
+				fats: total.fats + Number(entry.fats || 0),
+				carbs: total.carbs + Number(entry.carbs || 0),
+				nutritionUnknown: total.nutritionUnknown,
+			}
+		},
+		{
+			calories: 0,
+			proteins: 0,
+			fats: 0,
+			carbs: 0,
+			nutritionUnknown: false,
+		},
 	),
 )
 const pureWater = computed(() =>
@@ -727,9 +712,12 @@ const records = computed<DiaryRecord[]>(() =>
 			id: entry.id,
 			kind: 'food' as const,
 			title: entry.products?.name ?? 'Продукт',
-			detail: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г белка`,
+			detail: entry.products?.chars.nutritionKnown === false
+				? `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · Пищевая ценность не указана`
+				: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г белка`,
 			calories: Number(entry.calories),
 			volumeMl: 0,
+			nutritionKnown: entry.products?.chars.nutritionKnown !== false,
 			createdAt: entry.created_at,
 		})),
 		...drinkLogs.value.map((drink) => ({
@@ -739,6 +727,7 @@ const records = computed<DiaryRecord[]>(() =>
 			detail: `${formatVolume(Number(drink.volume_ml))} мл`,
 			calories: 0,
 			volumeMl: Number(drink.volume_ml),
+			nutritionKnown: true,
 			createdAt: drink.created_at,
 		})),
 	].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
@@ -748,18 +737,6 @@ const recordsCountLabel = computed(() => {
 	if (count === 1) return 'запис'
 	if (count > 1 && count < 5) return 'записи'
 	return 'записів'
-})
-const currentPeriod = computed<'morning' | 'day' | 'evening'>(() => {
-	const hour = Number(
-		new Intl.DateTimeFormat('en-GB', {
-			timeZone: 'Europe/Kyiv',
-			hour: '2-digit',
-			hourCycle: 'h23',
-		}).format(new Date()),
-	)
-	if (hour < 12) return 'morning'
-	if (hour < 18) return 'day'
-	return 'evening'
 })
 const completedWellbeingCount = computed(
 	() =>
@@ -775,6 +752,9 @@ const wellbeingByPeriod = computed(
 		Object.fromEntries(
 			wellbeingEntries.value.map((entry) => [entry.value.period, entry]),
 		) as Partial<Record<'morning' | 'day' | 'evening', WellbeingEntry>>,
+)
+const selectedWellbeingPeriod = computed(() =>
+	wellbeingPeriods.find((period) => period.key === selectedMoodPeriod.value),
 )
 const todayLabel = new Intl.DateTimeFormat('uk-UA', {
 	timeZone: 'Europe/Kyiv',
@@ -793,6 +773,17 @@ function openTargets() {
 	if (!userId.value) return
 	quickLogOpen.value = false
 	targetsOpen.value = true
+}
+
+function openMoodPicker(period: WellbeingPeriodKey) {
+	selectedMoodPeriod.value = period
+	moodDialogOpen.value = true
+}
+
+function saveSelectedMood(option: (typeof moodOptions)[number]) {
+	const period = selectedMoodPeriod.value
+	if (!period) return
+	void saveMood(period, option)
 }
 
 watch(
@@ -826,6 +817,7 @@ async function loadDashboard(id: string, force = false) {
 
 	const results = await Promise.all([
 		loadProducts(id),
+		loadRecentFoods(id),
 		loadDayEntries(id),
 		loadTargets(id),
 		loadWellbeing(id),
@@ -849,6 +841,7 @@ function dashboardCacheKey(id: string) {
 
 function restoreDashboardSnapshot(cached: DashboardSnapshot) {
 	products.value = cached.products
+	recentFoods.value = cached.recentFoods ?? []
 	foodLogs.value = cached.foodLogs
 	drinkLogs.value = cached.drinkLogs
 	wellbeingEntries.value = cached.wellbeingEntries ?? []
@@ -862,6 +855,7 @@ function cacheDashboardSnapshot(id: string) {
 		[dashboardCacheKey(id)]: {
 			cachedAt: Date.now(),
 			products: [...products.value],
+			recentFoods: [...recentFoods.value],
 			foodLogs: [...foodLogs.value],
 			drinkLogs: [...drinkLogs.value],
 			wellbeingEntries: [...wellbeingEntries.value],
@@ -874,7 +868,7 @@ function cacheDashboardSnapshot(id: string) {
 async function loadProducts(id: string): Promise<string | null> {
 	let { data, error: requestError } = await supabase
 		.from('products')
-		.select('id, name, quantity, chars')
+		.select('id, name, quantity, chars, idempotency_key')
 		.eq('user_id', id)
 		.order('name')
 	if (requestError) return 'Не удалось загрузить список продуктов.'
@@ -887,7 +881,7 @@ async function loadProducts(id: string): Promise<string | null> {
 
 		const refreshed = await supabase
 			.from('products')
-			.select('id, name, quantity, chars')
+			.select('id, name, quantity, chars, idempotency_key')
 			.eq('user_id', id)
 			.order('name')
 		data = refreshed.data
@@ -899,8 +893,32 @@ async function loadProducts(id: string): Promise<string | null> {
 		id: product.id,
 		name: product.name,
 		quantity: Number(product.quantity),
+		idempotencyKey: product.idempotency_key ?? undefined,
 		chars: product.chars as Product['chars'],
 	}))
+	return null
+}
+
+async function loadRecentFoods(id: string): Promise<string | null> {
+	const { data, error: requestError } = await supabase
+		.from('logs')
+		.select('product_id, quantity')
+		.eq('user_id', id)
+		.not('product_id', 'is', null)
+		.order('created_at', { ascending: false })
+		.limit(30)
+	if (requestError) return 'Не удалось загрузить недавние продукты.'
+
+	recentFoods.value = getRecentFoods(
+		(data ?? []).map((entry) => ({
+			productId: entry.product_id,
+			quantity: Number(entry.quantity),
+		})),
+	).flatMap((entry) =>
+		entry.productId
+			? [{ productId: entry.productId, quantity: entry.quantity }]
+			: [],
+	)
 	return null
 }
 
@@ -1015,7 +1033,111 @@ async function logFood(entry: { productId: string; quantity: number }) {
 		return
 	}
 
+	invalidateHistoryCache(id)
 	notice.value = `${product.name} добавлен в дневник.`
+	await refreshDay(id)
+}
+
+async function createAndLogFood(entry: NewFoodEntry) {
+	const id = userId.value
+	if (!id || savePending.value) return
+
+	const normalizedName = entry.name.trim().toLocaleLowerCase('uk-UA')
+	const existingProduct = products.value.find(
+		(product) => product.name.trim().toLocaleLowerCase('uk-UA') === normalizedName,
+	)
+	if (
+		existingProduct
+		&& existingProduct.idempotencyKey !== entry.idempotencyKey
+	) {
+		error.value = 'Продукт с таким названием уже есть в списке. Найдите его и выберите для записи.'
+		return
+	}
+
+	savePending.value = true
+	error.value = ''
+	notice.value = ''
+	const productNutrition = entry.nutrition ?? {
+		calories: 0,
+		proteins: 0,
+		fats: 0,
+		carbs: 0,
+	}
+	const chars: Product['chars'] = {
+		...productNutrition,
+		unit: entry.unit,
+		nutritionKnown: entry.nutrition !== null,
+	}
+	let { data: createdProduct, error: productError } = await supabase
+		.from('products')
+		.upsert({
+			user_id: id,
+			name: entry.name.trim(),
+			quantity: entry.referenceQuantity,
+			chars,
+			idempotency_key: entry.idempotencyKey,
+		}, { onConflict: 'idempotency_key' })
+		.select('id, name, quantity, chars, idempotency_key')
+		.single()
+
+	if (productError || !createdProduct) {
+		const recovered = await supabase
+			.from('products')
+			.select('id, name, quantity, chars, idempotency_key')
+			.eq('user_id', id)
+			.eq('idempotency_key', entry.idempotencyKey)
+			.maybeSingle()
+		if (recovered.error || !recovered.data) {
+			savePending.value = false
+			error.value = 'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+			return
+		}
+		createdProduct = recovered.data
+	}
+
+	if (!createdProduct) {
+		savePending.value = false
+		error.value = 'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+		return
+	}
+
+	const product: Product = {
+		id: createdProduct.id,
+		name: createdProduct.name,
+		quantity: Number(createdProduct.quantity),
+		idempotencyKey: createdProduct.idempotency_key ?? entry.idempotencyKey,
+		chars: createdProduct.chars as Product['chars'],
+	}
+	products.value = [
+		...products.value.filter((item) => item.id !== product.id),
+		product,
+	].sort((a, b) => a.name.localeCompare(b.name, 'uk-UA'))
+	invalidateDashboardCache(id)
+
+	const values = entry.nutrition
+		? scaleNutrition(entry.nutrition, entry.quantity, entry.referenceQuantity)
+		: { calories: 0, proteins: 0, fats: 0, carbs: 0 }
+	const { error: logError } = await supabase.from('logs').upsert({
+		user_id: id,
+		product_id: product.id,
+		date: getLocalDate(),
+		quantity: entry.quantity,
+		calories: values.calories,
+		proteins: values.proteins,
+		fats: values.fats,
+		carbs: values.carbs,
+		vitamins: {},
+		idempotency_key: entry.idempotencyKey,
+	}, { onConflict: 'idempotency_key' })
+	savePending.value = false
+	if (logError) {
+		error.value = 'Блюдо сохранено в списке, но запись о порции не добавлена. Найдите блюдо в списке и повторите запись.'
+		return
+	}
+
+	invalidateHistoryCache(id)
+	notice.value = `${formatFoodQuantity(entry.quantity, entry.unit)} «${product.name}» записано в дневник.`
+	quickLogFormVersion.value += 1
 	await refreshDay(id)
 }
 
@@ -1043,6 +1165,7 @@ async function logDrink(entry: {
 		return
 	}
 
+	invalidateHistoryCache(id)
 	notice.value = `${drinkKindLabel(entry.kind)} добавлен в дневник.`
 	await refreshDay(id)
 }
@@ -1085,6 +1208,9 @@ async function saveMood(
 		return
 	}
 
+	invalidateHistoryCache(id)
+	moodDialogOpen.value = false
+	selectedMoodPeriod.value = null
 	await loadWellbeing(id)
 	cacheDashboardSnapshot(id)
 	notice.value = `${wellbeingPeriods.find((item) => item.key === period)?.label}: обрано «${option.label}».`
@@ -1118,9 +1244,18 @@ async function saveTargets(payload: {
 }
 
 async function refreshDay(id: string) {
-	const loadError = await loadDayEntries(id)
+	const results = await Promise.all([loadDayEntries(id), loadRecentFoods(id)])
+	const loadError = results.find((result) => result)
 	if (loadError) error.value = loadError
 	else cacheDashboardSnapshot(id)
+}
+
+function invalidateHistoryCache(id: string) {
+	delete historyCache.value[id]
+}
+
+function invalidateDashboardCache(id: string) {
+	delete dashboardCache.value[dashboardCacheKey(id)]
 }
 
 function scaleVitamins(
@@ -1158,6 +1293,21 @@ function progress(value: number, target: number) {
 	return getProgressPercent(value, target)
 }
 
+function ringStyle(
+	value: number,
+	track = 'rgba(255, 255, 255, 0.18)',
+	fill = '#D7F26A',
+) {
+	return {
+		background: `conic-gradient(${fill} ${value}%, ${track} ${value}% 100%)`,
+	}
+}
+
+function waterSurfacePath(percent: number) {
+	const level = 88 - Math.min(100, Math.max(0, percent)) * 0.78
+	return `M0 ${level} C12 ${level - 4} 22 ${level + 4} 36 ${level} S58 ${level - 4} 80 ${level} V96 H0Z`
+}
+
 function formatNumber(value: number) {
 	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(
 		value,
@@ -1179,6 +1329,10 @@ function drinkKindLabel(kind: string) {
 
 function unitLabel(unit: 'g' | 'ml' | 'piece' | undefined) {
 	return { g: 'г', ml: 'мл', piece: 'шт.' }[unit ?? 'g']
+}
+
+function formatFoodQuantity(quantity: number, unit: 'g' | 'ml' | 'piece') {
+	return `${formatNumber(quantity)} ${{ g: 'г', ml: 'мл', piece: 'шт.' }[unit]}`
 }
 
 const seedProducts = [
@@ -1262,3 +1416,116 @@ const seedProducts = [
 	},
 ]
 </script>
+
+<style scoped>
+.goal-tile {
+	position: relative;
+	border: 1px solid transparent;
+}
+
+.goal-tile::before {
+	position: absolute;
+	inset: 0;
+	padding: 1px;
+	border-radius: inherit;
+	background: linear-gradient(
+		135deg,
+		rgb(255 255 255 / 62%),
+		rgb(255 255 255 / 12%) 48%,
+		rgb(12 56 41 / 38%)
+	);
+	content: '';
+	pointer-events: none;
+	-webkit-mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+}
+
+.goal-tile--water::before {
+	background: linear-gradient(
+		135deg,
+		rgb(255 255 255 / 94%),
+		rgb(255 255 255 / 28%) 48%,
+		rgb(61 133 141 / 48%)
+	);
+}
+
+.goal-ring {
+	position: relative;
+	display: grid;
+	flex: 0 0 auto;
+	place-items: center;
+	border-radius: 9999px;
+}
+
+.goal-ring::before {
+	position: absolute;
+	inset: 10px;
+	border-radius: 9999px;
+	background: #246b4f;
+	content: '';
+}
+
+.goal-ring__content {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	line-height: 1.1;
+}
+
+.goal-ring__content strong {
+	max-width: 4.5rem;
+	overflow: hidden;
+	font-size: 0.9rem;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.goal-ring__content small {
+	margin-top: 2px;
+	font-size: 0.6rem;
+	opacity: 0.75;
+}
+
+.goal-ring--large {
+	width: 6.5rem;
+	height: 6.5rem;
+}
+
+.goal-ring--small {
+	width: 4.75rem;
+	height: 4.75rem;
+}
+
+.goal-ring--small::before {
+	inset: 8px;
+}
+
+.goal-ring--small .goal-ring__content strong {
+	max-width: 3.25rem;
+	font-size: 0.8rem;
+}
+
+.goal-ring--water::before {
+	background: #e5f2f4;
+}
+
+.goal-ring--water .goal-ring__content {
+	color: white;
+}
+
+@media (min-width: 640px) {
+	.goal-ring--large {
+		width: 7.25rem;
+		height: 7.25rem;
+	}
+}
+</style>

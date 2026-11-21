@@ -18,8 +18,18 @@ interface ReminderSettingsRow {
 	evening_at: string
 }
 
+interface ReminderSettingsCache {
+	cachedAt: number
+	settings: ReminderSettingsRow | null
+}
+
+const REMINDER_SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
 const config = useRuntimeConfig()
+const settingsCache = useState<Record<string, ReminderSettingsCache>>(
+	'meal-reminder-settings-cache',
+	() => ({}),
+)
 const loading = shallowRef(true)
 const pending = shallowRef(false)
 const testPushPending = shallowRef(false)
@@ -48,25 +58,34 @@ async function loadSettings() {
 	loading.value = true
 	error.value = ''
 
-	const { data, error: loadError } = await supabase
-		.from('meal_reminder_settings')
-		.select('enabled, schedule_mode, morning_at, day_at, evening_at')
-		.eq('user_id', props.userId)
-		.maybeSingle()
+	const userId = props.userId
+	const cached = settingsCache.value[userId]
+	if (
+		cached &&
+		Date.now() - cached.cachedAt < REMINDER_SETTINGS_CACHE_TTL_MS
+	) {
+		applySettings(cached.settings)
+	} else {
+		const { data, error: loadError } = await supabase
+			.from('meal_reminder_settings')
+			.select('enabled, schedule_mode, morning_at, day_at, evening_at')
+			.eq('user_id', userId)
+			.maybeSingle()
 
-	if (loadError) {
-		error.value = 'Не вдалося завантажити налаштування нагадувань.'
-		loading.value = false
-		return
-	}
+		if (props.userId !== userId) return
 
-	if (data) {
-		const row = data as ReminderSettingsRow
-		enabledForAccount.value = row.enabled
-		scheduleMode.value = row.schedule_mode
-		times.morning = normalizeReminderTime(row.morning_at)
-		times.day = normalizeReminderTime(row.day_at)
-		times.evening = normalizeReminderTime(row.evening_at)
+		if (loadError) {
+			error.value = 'Не вдалося завантажити налаштування нагадувань.'
+			loading.value = false
+			return
+		}
+
+		const settings = data ? (data as ReminderSettingsRow) : null
+		applySettings(settings)
+		settingsCache.value = {
+			...settingsCache.value,
+			[userId]: { cachedAt: Date.now(), settings },
+		}
 	}
 
 	if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -82,6 +101,15 @@ async function loadSettings() {
 	}
 
 	loading.value = false
+}
+
+function applySettings(settings: ReminderSettingsRow | null) {
+	if (!settings) return
+	enabledForAccount.value = settings.enabled
+	scheduleMode.value = settings.schedule_mode
+	times.morning = normalizeReminderTime(settings.morning_at)
+	times.day = normalizeReminderTime(settings.day_at)
+	times.evening = normalizeReminderTime(settings.evening_at)
 }
 
 function choosePreset() {
@@ -103,7 +131,8 @@ async function saveSchedule() {
 
 	pending.value = true
 	try {
-		const saved = await persistSettings(enabledForAccount.value)
+		const submittedSettings = captureSubmittedSettings(enabledForAccount.value)
+		const saved = await persistSettings(submittedSettings)
 		if (saved) notice.value = 'Розклад нагадувань збережено.'
 	} catch (cause) {
 		error.value = cause instanceof Error
@@ -134,6 +163,7 @@ async function enableOnDevice() {
 		return
 	}
 
+	const submittedSettings = captureSubmittedSettings(enabledForAccount.value)
 	pending.value = true
 	try {
 		const permission = notificationPermission.value === 'granted'
@@ -147,7 +177,7 @@ async function enableOnDevice() {
 			return
 		}
 
-		await persistSettings(enabledForAccount.value)
+		await persistSettings(submittedSettings)
 		if (error.value) return
 
 		const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
@@ -170,7 +200,7 @@ async function enableOnDevice() {
 		)
 		if (subscriptionError) throw subscriptionError
 
-		if (!await persistSettings(true)) return
+		if (!await persistSettings({ ...submittedSettings, enabled: true })) return
 		subscribedOnDevice.value = true
 		enabledForAccount.value = true
 		notice.value = 'Нагадування увімкнено на цьому пристрої.'
@@ -186,6 +216,7 @@ async function enableOnDevice() {
 async function disableOnDevice() {
 	error.value = ''
 	notice.value = ''
+	const submittedSettings = captureSubmittedSettings(false)
 	pending.value = true
 	try {
 		const registration = await navigator.serviceWorker.getRegistration('/')
@@ -210,7 +241,7 @@ async function disableOnDevice() {
 
 		subscribedOnDevice.value = false
 		if (count === 0) {
-			const saved = await persistSettings(false)
+			const saved = await persistSettings(submittedSettings)
 			if (!saved) return
 			enabledForAccount.value = false
 		}
@@ -258,25 +289,45 @@ async function sendTestNotification() {
 	}
 }
 
-async function persistSettings(enabled: boolean): Promise<boolean> {
+function captureSubmittedSettings(enabled: boolean): ReminderSettingsRow {
+	return {
+		enabled,
+		schedule_mode: scheduleMode.value,
+		morning_at: times.morning,
+		day_at: times.day,
+		evening_at: times.evening,
+	}
+}
+
+async function persistSettings(settings: ReminderSettingsRow): Promise<boolean> {
+	const userId = props.userId
 	const { error: saveError } = await supabase
 		.from('meal_reminder_settings')
 		.upsert({
-			user_id: props.userId,
-			enabled,
-			schedule_mode: scheduleMode.value,
-			morning_at: times.morning,
-			day_at: times.day,
-			evening_at: times.evening,
+			user_id: userId,
+			enabled: settings.enabled,
+			schedule_mode: settings.schedule_mode,
+			morning_at: settings.morning_at,
+			day_at: settings.day_at,
+			evening_at: settings.evening_at,
 			updated_at: new Date().toISOString(),
 		}, { onConflict: 'user_id' })
+
+	if (props.userId !== userId) return false
 
 	if (saveError) {
 		error.value = 'Не вдалося зберегти розклад нагадувань.'
 		return false
 	}
 
-	enabledForAccount.value = enabled
+	enabledForAccount.value = settings.enabled
+	settingsCache.value = {
+		...settingsCache.value,
+		[userId]: {
+			cachedAt: Date.now(),
+			settings,
+		},
+	}
 	return true
 }
 

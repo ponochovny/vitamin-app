@@ -81,6 +81,13 @@
 				{{ userData.email }}
 			</p>
 
+			<MealReminderSettings
+				v-if="userData?.id"
+				:key="userData.id"
+				class="mt-5"
+				:user-id="userData.id"
+			/>
+
 			<p
 				v-if="error"
 				role="alert"
@@ -103,18 +110,12 @@
 </template>
 
 <script lang="ts" setup>
+import MealReminderSettings from '~/src/features/reminders/MealReminderSettings.vue'
+
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
-const userData = ref<any>(null)
-
-watch(
-	user,
-	() => {
-		userData.value = user.value
-	},
-	{ immediate: true },
-)
+const userData = computed(() => user.value)
 
 const loading = ref(false)
 const setLoading = (value: boolean) => (loading.value = value)

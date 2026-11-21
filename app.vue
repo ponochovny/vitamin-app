@@ -18,7 +18,7 @@ useHead({
 	],
 	meta: [
 		{ name: 'theme-color', content: '#246B4F' },
-		{ name: 'apple-mobile-web-app-capable', content: 'yes' },
+		{ name: 'mobile-web-app-capable', content: 'yes' },
 		{ name: 'apple-mobile-web-app-title', content: 'Vitamin' },
 	],
 })

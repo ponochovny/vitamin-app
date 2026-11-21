@@ -44,6 +44,14 @@ export function scaleNutrition(
 	quantity: number,
 	referenceQuantity: number
 ): Omit<DailyTargets, 'beveragesMl'> {
+	if (
+		!Number.isFinite(quantity)
+		|| quantity <= 0
+		|| !Number.isFinite(referenceQuantity)
+		|| referenceQuantity <= 0
+	) {
+		return { calories: 0, proteins: 0, fats: 0, carbs: 0 }
+	}
 	const factor = quantity / referenceQuantity
 	return {
 		calories: chars.calories * factor,
