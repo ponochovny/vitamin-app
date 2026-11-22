@@ -91,11 +91,12 @@ onUnmounted(() => {
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const siteUrl = String(
-	config.public.siteUrl || 'http://localhost:3000',
-).replace(/\/$/, '')
+const requestUrl = useRequestURL()
+const siteUrl = computed(() =>
+	String(config.public.siteUrl || requestUrl.origin).replace(/\/+$/, ''),
+)
 const canonicalUrl = computed(
-	() => `${siteUrl}${route.path === '/' ? '/' : route.path}`,
+	() => `${siteUrl.value}${route.path === '/' ? '/' : route.path}`,
 )
 const isPrivateRoute = computed(() =>
 	['/signin', '/history', '/products/add', '/auth/callback'].includes(
@@ -152,7 +153,7 @@ useSeoMeta({
 	ogType: 'website',
 	ogLocale: 'uk_UA',
 	ogUrl: canonicalUrl,
-	ogImage: `${siteUrl}/og-image.png`,
+	ogImage: computed(() => `${siteUrl.value}/og-image.png`),
 	ogImageAlt: 'Vitamin — щоденник турботи про себе',
 	ogImageWidth: 1200,
 	ogImageHeight: 630,
@@ -160,23 +161,23 @@ useSeoMeta({
 	twitterCard: 'summary_large_image',
 	twitterTitle: 'Vitamin — щоденник їжі, води та самопочуття',
 	twitterDescription: 'Щоденник їжі, цілей і самопочуття.',
-	twitterImage: `${siteUrl}/og-image.png`,
+	twitterImage: computed(() => `${siteUrl.value}/og-image.png`),
 })
 
 useHead({
 	script: [
 		{
 			type: 'application/ld+json',
-			children: JSON.stringify({
+			children: computed(() => JSON.stringify({
 				'@context': 'https://schema.org',
 				'@type': 'WebApplication',
 				name: 'Vitamin',
 				description: 'Щоденник їжі, води, цілей і самопочуття.',
-				url: siteUrl,
+				url: siteUrl.value,
 				applicationCategory: 'HealthApplication',
 				operatingSystem: 'Web',
 				inLanguage: 'uk',
-			}),
+			})),
 		},
 	],
 })

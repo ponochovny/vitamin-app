@@ -1,6 +1,7 @@
 export default defineEventHandler((event) => {
 	const config = useRuntimeConfig(event)
-	const siteUrl = String(config.public.siteUrl || 'http://localhost:3000').replace(/\/$/, '')
+	const requestUrl = getRequestURL(event)
+	const siteUrl = String(config.public.siteUrl || requestUrl.origin).replace(/\/+$/, '')
 	const pages = [
 		{ path: '/', changefreq: 'daily', priority: '1.0' },
 		{ path: '/about', changefreq: 'monthly', priority: '0.7' },

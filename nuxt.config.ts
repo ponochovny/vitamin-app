@@ -7,7 +7,7 @@ export default defineNuxtConfig({
 	runtimeConfig: {
 		public: {
 			vapidPublicKey: '',
-			siteUrl: 'http://localhost:3000',
+			siteUrl: '',
 		},
 	},
 	app: {
