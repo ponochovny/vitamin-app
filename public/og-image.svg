@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F4F7F2"/>
+  <path d="M0 0h18v630H0z" fill="#246B4F"/>
+
+  <g transform="translate(78 78)">
+    <rect width="70" height="70" rx="20" fill="#246B4F"/>
+    <circle cx="49" cy="22" r="13" fill="#D7F26A"/>
+    <path d="M19 24c17 2 32 13 38 30-15 1-31-8-38-30Z" fill="#fff"/>
+    <path d="M19 24c9 16 19 26 38 30" fill="none" stroke="#246B4F" stroke-linecap="round" stroke-width="3.5"/>
+  </g>
+  <text x="166" y="126" fill="#246B4F" font-family="Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1">Vitamin</text>
+
+  <text x="78" y="270" fill="#203B30" font-family="Arial, sans-serif" font-size="64" font-weight="700" letter-spacing="-2">Щоденник</text>
+  <text x="78" y="350" fill="#203B30" font-family="Arial, sans-serif" font-size="64" font-weight="700" letter-spacing="-2">турботи про себе</text>
+
+  <text x="82" y="413" fill="#52665B" font-family="Arial, sans-serif" font-size="25" font-weight="400">
+    <tspan x="82" dy="0">Їжа, вода і самопочуття —</tspan>
+    <tspan x="82" dy="36">у щоденних звичках.</tspan>
+  </text>
+
+  <circle cx="920" cy="322" r="236" fill="#E5EDE3"/>
+  <circle cx="920" cy="322" r="190" fill="#D7F26A"/>
+  <circle cx="920" cy="322" r="142" fill="#F4F7F2"/>
+  <circle cx="920" cy="322" r="142" fill="none" stroke="#246B4F" stroke-width="3"/>
+
+  <circle cx="920" cy="322" r="164" fill="none" stroke="#246B4F" stroke-width="3" stroke-dasharray="2 13" stroke-linecap="round"/>
+  <circle cx="920" cy="158" r="8" fill="#246B4F"/>
+  <circle cx="1084" cy="322" r="8" fill="#246B4F"/>
+  <circle cx="920" cy="486" r="8" fill="#246B4F"/>
+  <circle cx="756" cy="322" r="8" fill="#246B4F"/>
+
+  <circle cx="1003" cy="238" r="26" fill="#246B4F"/>
+  <path d="M853 239c41 3 80 30 95 74-38 3-78-19-95-74Z" fill="#246B4F"/>
+  <path d="M853 239c24 41 47 66 95 74" fill="none" stroke="#F4F7F2" stroke-linecap="round" stroke-width="8"/>
+  <path d="M938 352c35-30 77-41 118-31-15 43-54 70-102 70-13 0-23-15-16-27 0-4 0-8 0-12Z" fill="#246B4F"/>
+  <path d="M938 352c23 16 42 27 70 35" fill="none" stroke="#F4F7F2" stroke-linecap="round" stroke-width="7"/>
+  <path d="M852 385c17-17 36-25 58-26-4 24-19 42-42 50-8 3-17-3-16-12Z" fill="#B4D83C"/>
+</svg>

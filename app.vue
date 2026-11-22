@@ -152,12 +152,15 @@ useSeoMeta({
 	ogType: 'website',
 	ogLocale: 'uk_UA',
 	ogUrl: canonicalUrl,
-	ogImage: `${siteUrl}/icon-512.png`,
-	ogImageAlt: 'Vitamin — щоденник їжі та самопочуття',
-	twitterCard: 'summary',
+	ogImage: `${siteUrl}/og-image.png`,
+	ogImageAlt: 'Vitamin — щоденник турботи про себе',
+	ogImageWidth: 1200,
+	ogImageHeight: 630,
+	ogImageType: 'image/png',
+	twitterCard: 'summary_large_image',
 	twitterTitle: 'Vitamin — щоденник їжі, води та самопочуття',
 	twitterDescription: 'Щоденник їжі, цілей і самопочуття.',
-	twitterImage: `${siteUrl}/icon-512.png`,
+	twitterImage: `${siteUrl}/og-image.png`,
 })
 
 useHead({

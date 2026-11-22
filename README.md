@@ -11,6 +11,8 @@ NUXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
 Этот адрес используется в canonical-ссылках, Open Graph-тегах, `robots.txt` и `sitemap.xml`.
+Картинка для превью ссылки — `public/og-image.png` (1200 × 630); её можно заменить,
+сохранив имя и размеры. Исходный SVG-макет находится рядом в `public/og-image.svg`.
 
 ## Локальный вход через Google
 
