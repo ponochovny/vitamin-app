@@ -282,6 +282,16 @@
 							:key="macro.key"
 							class="goal-tile flex flex-col items-center justify-center rounded-2xl bg-white/10 px-2 py-3 text-center sm:px-3"
 						>
+							<div class="mb-1.5 flex items-center gap-1.5">
+								<span
+									class="size-2 rounded-full"
+									:style="{ backgroundColor: macro.accent }"
+									aria-hidden="true"
+								/>
+								<p class="text-xs font-semibold text-white/85">
+									{{ macro.label }}
+								</p>
+							</div>
 							<div
 								class="goal-ring goal-ring--small"
 								:style="
@@ -289,6 +299,8 @@
 										nutrition.nutritionUnknown
 											? 0
 											: progress(nutrition[macro.key], targets[macro.key]),
+										undefined,
+										macro.accent,
 									)
 								"
 								role="progressbar"
@@ -316,13 +328,10 @@
 									<small>г</small>
 								</span>
 							</div>
-							<p class="mt-2 text-xs font-semibold text-white/80">
-								{{ macro.label }}
-							</p>
-							<p class="mt-1 text-xs font-bold">
+							<p class="mt-2 text-xs font-bold">
 								з {{ formatNumber(targets[macro.key]) }} г
 							</p>
-							<p class="mt-0.5 text-[11px] text-white/65">
+							<p class="mt-1 text-[11px] text-white/65">
 								{{
 									nutrition.nutritionUnknown
 										? 'Невідомо'
@@ -752,10 +761,14 @@ watch(notice, (message) => {
 	}
 })
 
-const macros: Array<{ key: 'proteins' | 'fats' | 'carbs'; label: string }> = [
-	{ key: 'proteins', label: 'Білки' },
-	{ key: 'fats', label: 'Жири' },
-	{ key: 'carbs', label: 'Вуглеводи' },
+const macros: Array<{
+	key: 'proteins' | 'fats' | 'carbs'
+	label: string
+	accent: string
+}> = [
+	{ key: 'proteins', label: 'Білки', accent: '#D7F26A' },
+	{ key: 'fats', label: 'Жири', accent: '#F2C879' },
+	{ key: 'carbs', label: 'Вуглеводи', accent: '#91D4C1' },
 ]
 
 const moodOptions = [
@@ -1688,8 +1701,12 @@ const seedProducts = [
 }
 
 .goal-ring--large {
-	width: 6.5rem;
-	height: 6.5rem;
+	width: 7rem;
+	height: 7rem;
+}
+
+.goal-ring--large .goal-ring__content strong {
+	font-size: 1rem;
 }
 
 .goal-ring--small {
@@ -1716,8 +1733,8 @@ const seedProducts = [
 
 @media (min-width: 640px) {
 	.goal-ring--large {
-		width: 7.25rem;
-		height: 7.25rem;
+		width: 7.75rem;
+		height: 7.75rem;
 	}
 }
 </style>
