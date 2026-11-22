@@ -28,10 +28,10 @@
 		<Dialog v-model:open="editDialogOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>Исправить запись</DialogTitle>
+					<DialogTitle>Виправити запис</DialogTitle>
 					<DialogDescription>
-						Измените количество — показатели еды пересчитаются по карточке
-						продукта.
+						Змініть кількість — показники їжі перерахуються за карткою
+						продукту.
 					</DialogDescription>
 				</DialogHeader>
 				<form v-if="editingEntry" class="space-y-4" @submit.prevent="saveEntry">
@@ -39,8 +39,8 @@
 					<label class="block space-y-1.5 text-sm font-medium">
 						<span>{{
 							editingEntry.kind === 'food'
-								? `Количество, ${editingEntry.unit}`
-								: 'Объём, мл'
+								? `Кількість, ${editingEntry.unit}`
+								: 'Об’єм, мл'
 						}}</span>
 						<Input
 							v-if="editingEntry.kind === 'food'"
@@ -63,7 +63,7 @@
 						{{ editError }}
 					</p>
 					<Button type="submit" :disabled="entryPending">
-						{{ entryPending ? 'Сохраняю…' : 'Сохранить изменения' }}
+						{{ entryPending ? 'Зберігаю…' : 'Зберегти зміни' }}
 					</Button>
 				</form>
 			</DialogContent>
@@ -247,7 +247,7 @@
 								v-if="entry.kind === 'food' && entry.product"
 								type="button"
 								class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
-								:aria-label="`Справка о продукте ${entry.title}`"
+								:aria-label="`Довідка про продукт ${entry.title}`"
 								@click="openProductInfo(entry)"
 							>
 								<span
@@ -292,7 +292,7 @@
 										:disabled="entryPending"
 										@click="openEdit(entry)"
 									>
-										Исправить
+										Виправити
 									</button>
 									<button
 										type="button"
@@ -300,7 +300,7 @@
 										:disabled="entryPending"
 										@click="deleteEntry(entry)"
 									>
-										Удалить
+										Видалити
 									</button>
 								</div>
 							</div>
@@ -610,9 +610,15 @@ watch(
 	async (id) => {
 		historyLoadGeneration++
 		loading.value = true
+		refreshing.value = false
 		error.value = ''
 		expandedDates.value = new Set()
 		clearHistoryRecords()
+		editDialogOpen.value = false
+		editingEntry.value = null
+		editQuantity.value = ''
+		editVolume.value = ''
+		editError.value = ''
 		if (!id) {
 			loading.value = false
 			return
@@ -741,7 +747,7 @@ async function saveEntry() {
 		const quantity = Number(editQuantity.value)
 		const product = entry.product
 		if (!product || !Number.isFinite(quantity) || quantity <= 0) {
-			editError.value = 'Введите количество больше нуля.'
+			editError.value = 'Кількість має бути більшою за нуль.'
 			entryPending.value = false
 			return
 		}
@@ -765,7 +771,7 @@ async function saveEntry() {
 	} else {
 		const volume = Number(editVolume.value)
 		if (!Number.isFinite(volume) || volume <= 0) {
-			editError.value = 'Введите объём больше нуля.'
+			editError.value = 'Об’єм має бути більшим за нуль.'
 			entryPending.value = false
 			return
 		}
@@ -778,17 +784,21 @@ async function saveEntry() {
 	}
 
 	entryPending.value = false
-	if (userId.value !== id) return
 	if (saveError) {
-		editError.value = 'Не удалось сохранить изменения. Попробуйте ещё раз.'
+		if (userId.value === id) {
+			editError.value = 'Не вдалося зберегти зміни. Спробуйте ще раз.'
+		}
 		return
 	}
 
+	invalidateDashboardCache(id)
+	if (userId.value !== id) return
+
 	editDialogOpen.value = false
 	editingEntry.value = null
-	invalidateDashboardCache(id)
 	await loadHistory(id, true)
-	toast.success('Запись обновлена.')
+	if (userId.value !== id) return
+	toast.success('Запис оновлено.')
 }
 
 async function deleteEntry(entry: HistoryEntry) {
@@ -796,7 +806,7 @@ async function deleteEntry(entry: HistoryEntry) {
 	if (!id || entryPending.value) return
 	if (
 		!window.confirm(
-			`Удалить запись «${entry.title}»? Это действие нельзя отменить.`,
+			`Видалити запис «${entry.title}»? Цю дію не можна скасувати.`,
 		)
 	)
 		return
@@ -811,15 +821,19 @@ async function deleteEntry(entry: HistoryEntry) {
 		.eq('user_id', id)
 	entryPending.value = false
 
-	if (userId.value !== id) return
 	if (deleteError) {
-		error.value = 'Не удалось удалить запись. Попробуйте ещё раз.'
+		if (userId.value === id) {
+			error.value = 'Не вдалося видалити запис. Спробуйте ще раз.'
+		}
 		return
 	}
 
 	invalidateDashboardCache(id)
+	if (userId.value !== id) return
+
 	await loadHistory(id, true)
-	toast.success('Запись удалена.')
+	if (userId.value !== id) return
+	toast.success('Запис видалено.')
 }
 
 function invalidateDashboardCache(id: string) {

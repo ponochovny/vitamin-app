@@ -22,6 +22,28 @@ describe('diary helpers', () => {
 		])
 	})
 
+	it('applies the product limit after deduplicating the full ordered input', () => {
+		const entries = [
+			...Array.from({ length: 31 }, () => ({
+				productId: 'apple',
+				quantity: 150,
+			})),
+			{ productId: 'banana', quantity: 100 },
+			{ productId: 'pear', quantity: 80 },
+			{ productId: 'plum', quantity: 60 },
+			{ productId: 'orange', quantity: 40 },
+			{ productId: 'grape', quantity: 20 },
+		]
+
+		expect(getRecentFoods(entries)).toEqual([
+			{ productId: 'apple', quantity: 150 },
+			{ productId: 'banana', quantity: 100 },
+			{ productId: 'pear', quantity: 80 },
+			{ productId: 'plum', quantity: 60 },
+			{ productId: 'orange', quantity: 40 },
+		])
+	})
+
 	it('accepts nutrition only when all values are provided or all are omitted', () => {
 		expect(parseOptionalNutrition({
 			calories: '',

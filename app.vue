@@ -18,6 +18,9 @@ const canonicalUrl = computed(() => `${siteUrl}${route.path === '/' ? '/' : rout
 const isPrivateRoute = computed(() =>
 	['/signin', '/history', '/products/add', '/auth/callback'].includes(route.path),
 )
+const robotsDirective = computed(() =>
+	isPrivateRoute.value ? 'noindex, nofollow' : 'index, follow',
+)
 
 useHead({
 	titleTemplate: (titleChunk) =>
@@ -36,7 +39,7 @@ useHead({
 		{ name: 'apple-mobile-web-app-title', content: 'Vitamin' },
 		{ name: 'application-name', content: 'Vitamin' },
 		{ name: 'format-detection', content: 'telephone=no' },
-		{ name: 'robots', content: isPrivateRoute },
+		{ name: 'robots', content: robotsDirective },
 	],
 })
 

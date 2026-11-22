@@ -8,11 +8,6 @@ export default defineEventHandler((event) => {
 	return `User-agent: *
 Allow: /
 
-Disallow: /signin
-Disallow: /history
-Disallow: /auth/callback
-Disallow: /products/
-
 Sitemap: ${siteUrl}/sitemap.xml
 `
 })

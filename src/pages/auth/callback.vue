@@ -1,7 +1,7 @@
 <template>
 	<main class="mx-auto max-w-md p-6 text-center">
 		<p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
-		<p v-else role="status">Завершаем вход...</p>
+		<p v-else role="status">Завершуємо вхід...</p>
 	</main>
 </template>
 
@@ -19,18 +19,18 @@ onMounted(async () => {
 	const authError = query.get('error_description') ?? query.get('error')
 
 	if (authError) {
-		error.value = 'Вход через Google не завершён. Попробуйте ещё раз.'
+		error.value = 'Вхід через Google не завершено. Спробуйте ще раз.'
 		return
 	}
 
 	const { data, error: sessionError } = await supabase.auth.getSession()
 	if (sessionError) {
-		error.value = 'Не удалось проверить сессию. Попробуйте войти ещё раз.'
+		error.value = 'Не вдалося перевірити сесію. Спробуйте увійти ще раз.'
 		return
 	}
 
 	if (!data.session) {
-		error.value = 'Не удалось завершить вход через Google. Попробуйте ещё раз.'
+		error.value = 'Не вдалося завершити вхід через Google. Спробуйте ще раз.'
 		return
 	}
 

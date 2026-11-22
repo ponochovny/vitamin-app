@@ -19,10 +19,10 @@ const emit = defineEmits<{
 }>()
 
 const nutrientLabels = [
-	{ key: 'calories', label: 'Энергия', unit: 'ккал' },
-	{ key: 'proteins', label: 'Белки', unit: 'г' },
-	{ key: 'fats', label: 'Жиры', unit: 'г' },
-	{ key: 'carbs', label: 'Углеводы', unit: 'г' },
+	{ key: 'calories', label: 'Енергія', unit: 'ккал' },
+	{ key: 'proteins', label: 'Білки', unit: 'г' },
+	{ key: 'fats', label: 'Жири', unit: 'г' },
+	{ key: 'carbs', label: 'Вуглеводи', unit: 'г' },
 ] as const
 
 function unitLabel(unit: FoodProductInfo['chars']['unit'] | undefined) {
@@ -40,14 +40,14 @@ function formatNumber(value: number) {
 			<DialogHeader v-if="product">
 				<DialogTitle>{{ product.name }}</DialogTitle>
 				<DialogDescription>
-					Справочные значения на {{ formatNumber(product.quantity) }}
-					{{ unitLabel(product.chars.unit) }}. Они могут быть приблизительными.
+					Довідкові значення на {{ formatNumber(product.quantity) }}
+					{{ unitLabel(product.chars.unit) }}. Вони можуть бути приблизними.
 				</DialogDescription>
 			</DialogHeader>
 
 			<div v-if="product" class="space-y-5">
 				<section v-if="product.chars.nutritionKnown !== false">
-					<h3 class="text-sm font-semibold">Пищевая ценность</h3>
+					<h3 class="text-sm font-semibold">Харчова цінність</h3>
 					<dl class="mt-2 grid grid-cols-2 gap-2">
 						<div
 							v-for="nutrient in nutrientLabels"
@@ -62,11 +62,11 @@ function formatNumber(value: number) {
 					</dl>
 				</section>
 				<p v-else class="rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
-					Пищевая ценность этого продукта пока не указана.
+					Харчову цінність цього продукту ще не зазначено.
 				</p>
 
 				<section v-if="logged">
-					<h3 class="text-sm font-semibold">В этой записи</h3>
+					<h3 class="text-sm font-semibold">У цьому записі</h3>
 					<p class="mt-1 text-sm text-muted-foreground">
 						{{ formatNumber(logged.quantity) }} {{ unitLabel(product.chars.unit) }}
 					</p>

@@ -103,7 +103,7 @@
 							wellbeingByPeriod[selectedWellbeingPeriod.key]?.value.mood ===
 							option.mood
 								? 'border-primary bg-primary text-primary-foreground'
-								: 'border-border bg-white hover:border-primary/40 hover:bg-primary/[0.03]'
+								: 'border-border bg-white hover:border-primary/40 hover:bg-primary/3'
 						"
 						@click="saveSelectedMood(option)"
 					>
@@ -117,7 +117,7 @@
 		<section
 			v-if="loading"
 			role="status"
-			class="rounded-[1.5rem] border border-border/80 bg-card p-8 text-sm text-muted-foreground"
+			class="rounded-3xl border border-border/80 bg-card p-8 text-sm text-muted-foreground"
 		>
 			Завантажую щоденник...
 		</section>
@@ -237,7 +237,7 @@
 							role="progressbar"
 							:aria-valuenow="
 								nutrition.nutritionUnknown
-									? 0
+									? undefined
 									: Math.round(progress(nutrition.calories, targets.calories))
 							"
 							aria-valuemin="0"
@@ -262,7 +262,7 @@
 							<p class="mt-2 text-base font-bold leading-tight">
 								{{
 									nutrition.nutritionUnknown
-										? 'Пищевая ценность не указана'
+										? 'Харчову цінність не зазначено'
 										: `з ${formatNumber(targets.calories)} ккал`
 								}}
 							</p>
@@ -294,7 +294,7 @@
 								role="progressbar"
 								:aria-valuenow="
 									nutrition.nutritionUnknown
-										? 0
+										? undefined
 										: Math.round(
 												progress(nutrition[macro.key], targets[macro.key]),
 											)
@@ -303,7 +303,7 @@
 								aria-valuemax="100"
 								:aria-label="
 									nutrition.nutritionUnknown
-										? `${macro.label}: пищевая ценность не указана`
+										? `${macro.label}: харчову цінність не зазначено`
 										: `${macro.label}: ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів`
 								"
 							>
@@ -324,10 +324,12 @@
 							</p>
 							<p class="mt-0.5 text-[11px] text-white/65">
 								{{
-									Math.round(
-										progress(nutrition[macro.key], targets[macro.key]),
-									)
-								}}% цілі
+									nutrition.nutritionUnknown
+										? 'Невідомо'
+										: `${Math.round(
+												progress(nutrition[macro.key], targets[macro.key]),
+											)}% цілі`
+								}}
 							</p>
 						</article>
 					</div>
@@ -484,7 +486,7 @@
 								v-if="record.kind === 'food' && record.product"
 								type="button"
 								class="flex w-full cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
-								:aria-label="`Справка о продукте ${record.title}`"
+								:aria-label="`Довідка про продукт ${record.title}`"
 								@click="openProductInfo(record)"
 							>
 								<span
@@ -550,9 +552,11 @@
 <script setup lang="ts">
 useSeoMeta({
 	title: 'Щоденник їжі, води та самопочуття',
-	description: 'Записуйте їжу та напої, задавайте добові цілі й відстежуйте самопочуття у щоденнику Vitamin.',
+	description:
+		'Записуйте їжу та напої, задавайте добові цілі й відстежуйте самопочуття у щоденнику Vitamin.',
 	ogTitle: 'Vitamin — ваш щоденник їжі та самопочуття',
-	ogDescription: 'Цілі на день, записи їжі й напоїв, настрій та самопочуття в одному застосунку.',
+	ogDescription:
+		'Цілі на день, записи їжі й напоїв, настрій та самопочуття в одному застосунку.',
 })
 import { computed, shallowRef, watch } from 'vue'
 import { toast } from 'vue-sonner'
@@ -679,6 +683,7 @@ const savePending = shallowRef(false)
 const quickLogFormVersion = shallowRef(0)
 const targetPending = shallowRef(false)
 const quickLogOpen = shallowRef(false)
+let quickLogFormSessionId = 0
 const targetsOpen = shallowRef(false)
 const moodDialogOpen = shallowRef(false)
 const productInfoOpen = shallowRef(false)
@@ -698,9 +703,18 @@ const dashboardCache = useState<Record<string, DashboardSnapshot>>(
 	'dashboard-cache',
 	() => ({}),
 )
+let dashboardLoadGeneration = 0
 const historyCache = useState<Record<string, unknown>>(
 	'history-cache',
 	() => ({}),
+)
+
+watch(
+	quickLogOpen,
+	() => {
+		quickLogFormSessionId += 1
+	},
+	{ flush: 'sync' },
 )
 
 watch(error, (message) => {
@@ -780,8 +794,8 @@ const records = computed<DiaryRecord[]>(() =>
 			title: entry.products?.name ?? 'Продукт',
 			detail:
 				entry.products?.chars.nutritionKnown === false
-					? `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · Пищевая ценность не указана`
-					: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г белка`,
+					? `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · Харчову цінність не зазначено`
+					: `${formatNumber(Number(entry.quantity))} ${unitLabel(entry.products?.chars.unit)} · ${formatNumber(Number(entry.proteins))} г білка`,
 			calories: Number(entry.calories),
 			volumeMl: 0,
 			nutritionKnown: entry.products?.chars.nutritionKnown !== false,
@@ -884,12 +898,16 @@ watch(
 )
 
 async function loadDashboard(id: string, force = false) {
+	if (userId.value !== id) return
+	const generation = ++dashboardLoadGeneration
+
 	const cacheKey = dashboardCacheKey(id)
 	const cached = dashboardCache.value[cacheKey]
 	const cacheIsFresh =
 		cached && Date.now() - cached.cachedAt < DASHBOARD_CACHE_TTL_MS
 
 	if (!force && cacheIsFresh) {
+		if (userId.value !== id || generation !== dashboardLoadGeneration) return
 		restoreDashboardSnapshot(cached)
 		loading.value = false
 		return
@@ -902,11 +920,13 @@ async function loadDashboard(id: string, force = false) {
 
 	const results = await Promise.all([
 		loadProducts(id),
-		loadRecentFoods(id),
+		loadRecentFoods(id, generation),
 		loadDayEntries(id),
 		loadTargets(id),
 		loadWellbeing(id),
 	])
+	if (userId.value !== id || generation !== dashboardLoadGeneration) return
+
 	const failure = results.find((result) => result)
 	if (failure) error.value = failure
 	else cacheDashboardSnapshot(id)
@@ -956,13 +976,13 @@ async function loadProducts(id: string): Promise<string | null> {
 		.select('id, name, quantity, chars, idempotency_key')
 		.eq('user_id', id)
 		.order('name')
-	if (requestError) return 'Не удалось загрузить список продуктов.'
+	if (requestError) return 'Не вдалося завантажити список продуктів.'
 
 	if (!data?.length) {
 		const { error: seedError } = await supabase
 			.from('products')
 			.insert(seedProducts.map((product) => ({ ...product, user_id: id })))
-		if (seedError) return 'Не удалось добавить стартовые продукты.'
+		if (seedError) return 'Не вдалося додати початкові продукти.'
 
 		const refreshed = await supabase
 			.from('products')
@@ -971,7 +991,7 @@ async function loadProducts(id: string): Promise<string | null> {
 			.order('name')
 		data = refreshed.data
 		requestError = refreshed.error
-		if (requestError) return 'Не удалось загрузить стартовые продукты.'
+		if (requestError) return 'Не вдалося завантажити початкові продукти.'
 	}
 
 	products.value = (data ?? []).map((product) => ({
@@ -984,15 +1004,27 @@ async function loadProducts(id: string): Promise<string | null> {
 	return null
 }
 
-async function loadRecentFoods(id: string): Promise<string | null> {
+async function loadRecentFoods(
+	id: string,
+	generation: number,
+): Promise<string | null> {
+	const activeAccountId = userId.value
+	if (activeAccountId !== id) return null
+
 	const { data, error: requestError } = await supabase
 		.from('logs')
 		.select('product_id, quantity')
 		.eq('user_id', id)
 		.not('product_id', 'is', null)
 		.order('created_at', { ascending: false })
-		.limit(30)
-	if (requestError) return 'Не удалось загрузить недавние продукты.'
+	if (requestError) return 'Не вдалося завантажити нещодавні продукти.'
+	if (
+		activeAccountId !== userId.value ||
+		activeAccountId !== id ||
+		generation !== dashboardLoadGeneration
+	) {
+		return null
+	}
 
 	recentFoods.value = getRecentFoods(
 		(data ?? []).map((entry) => ({
@@ -1027,7 +1059,7 @@ async function loadDayEntries(id: string): Promise<string | null> {
 	])
 
 	if (foods.error || drinks.error)
-		return 'Не удалось загрузить записи за сегодня.'
+		return 'Не вдалося завантажити записи за сьогодні.'
 	foodLogs.value = (foods.data ?? []) as unknown as FoodLog[]
 	drinkLogs.value = (drinks.data ?? []) as DrinkLog[]
 	return null
@@ -1065,7 +1097,7 @@ async function loadTargets(id: string): Promise<string | null> {
 		.select('daily_targets, plan_preset')
 		.eq('id', id)
 		.maybeSingle()
-	if (readError) return 'Не удалось загрузить дневные цели.'
+	if (readError) return 'Не вдалося завантажити денні цілі.'
 
 	if (!data) {
 		const { error: insertError } = await supabase.from('profiles').upsert({
@@ -1073,7 +1105,7 @@ async function loadTargets(id: string): Promise<string | null> {
 			daily_targets: DEFAULT_TARGETS,
 			plan_preset: 'balanced',
 		})
-		if (insertError) return 'Не удалось создать настройки дневных целей.'
+		if (insertError) return 'Не вдалося створити налаштування денних цілей.'
 		targets.value = { ...DEFAULT_TARGETS }
 		targetPreset.value = 'balanced'
 		return null
@@ -1114,18 +1146,19 @@ async function logFood(entry: { productId: string; quantity: number }) {
 	savePending.value = false
 	if (saveError) {
 		error.value =
-			'Не удалось записать еду. Проверь соединение и попробуй ещё раз.'
+			'Не вдалося записати їжу. Перевір з’єднання та спробуй ще раз.'
 		return
 	}
 
 	invalidateHistoryCache(id)
-	notice.value = `${product.name} добавлен в дневник.`
+	notice.value = `${product.name} додано до щоденника.`
 	await refreshDay(id)
 }
 
 async function createAndLogFood(entry: NewFoodEntry) {
 	const id = userId.value
 	if (!id || savePending.value) return
+	const submittedFormSessionId = quickLogFormSessionId
 
 	const normalizedName = entry.name.trim().toLocaleLowerCase('uk-UA')
 	const existingProduct = products.value.find(
@@ -1137,7 +1170,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		existingProduct.idempotencyKey !== entry.idempotencyKey
 	) {
 		error.value =
-			'Продукт с таким названием уже есть в списке. Найдите его и выберите для записи.'
+			'Продукт із такою назвою вже є у списку. Знайдіть його та виберіть для запису.'
 		return
 	}
 
@@ -1180,7 +1213,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		if (recovered.error || !recovered.data) {
 			savePending.value = false
 			error.value =
-				'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+				'Не вдалося зберегти страву у списку. Перевірте з’єднання та спробуйте ще раз.'
 			return
 		}
 		createdProduct = recovered.data
@@ -1189,7 +1222,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	if (!createdProduct) {
 		savePending.value = false
 		error.value =
-			'Не удалось сохранить блюдо в списке. Проверьте соединение и попробуйте ещё раз.'
+			'Не вдалося зберегти страву у списку. Перевірте з’єднання та спробуйте ще раз.'
 		return
 	}
 
@@ -1227,13 +1260,19 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	savePending.value = false
 	if (logError) {
 		error.value =
-			'Блюдо сохранено в списке, но запись о порции не добавлена. Найдите блюдо в списке и повторите запись.'
+			'Страву збережено у списку, але порцію не записано. Знайдіть страву у списку та повторіть спробу.'
 		return
 	}
 
 	invalidateHistoryCache(id)
-	notice.value = `${formatFoodQuantity(entry.quantity, entry.unit)} «${product.name}» записано в дневник.`
-	quickLogFormVersion.value += 1
+	notice.value = `${formatFoodQuantity(entry.quantity, entry.unit)} «${product.name}» записано до щоденника.`
+	if (
+		quickLogOpen.value
+		&& userId.value === id
+		&& quickLogFormSessionId === submittedFormSessionId
+	) {
+		quickLogFormVersion.value += 1
+	}
 	await refreshDay(id)
 }
 
@@ -1257,12 +1296,12 @@ async function logDrink(entry: {
 	savePending.value = false
 	if (saveError) {
 		error.value =
-			'Не удалось записать напиток. Проверь соединение и попробуй ещё раз.'
+			'Не вдалося записати напій. Перевір з’єднання та спробуй ще раз.'
 		return
 	}
 
 	invalidateHistoryCache(id)
-	notice.value = `${drinkKindLabel(entry.kind)} добавлен в дневник.`
+	notice.value = `${drinkKindLabel(entry.kind)} додано до щоденника.`
 	await refreshDay(id)
 }
 
@@ -1329,18 +1368,26 @@ async function saveTargets(payload: {
 	})
 	targetPending.value = false
 	if (saveError) {
-		error.value = 'Не удалось сохранить цель. Попробуй ещё раз.'
+		error.value = 'Не вдалося зберегти ціль. Спробуй ще раз.'
 		return
 	}
 
 	targets.value = { ...payload.targets }
 	targetPreset.value = payload.preset
 	cacheDashboardSnapshot(id)
-	notice.value = 'Дневные цели сохранены.'
+	notice.value = 'Денні цілі збережено.'
 }
 
 async function refreshDay(id: string) {
-	const results = await Promise.all([loadDayEntries(id), loadRecentFoods(id)])
+	if (userId.value !== id) return
+	const generation = ++dashboardLoadGeneration
+
+	const results = await Promise.all([
+		loadDayEntries(id),
+		loadRecentFoods(id, generation),
+	])
+	if (userId.value !== id || generation !== dashboardLoadGeneration) return
+
 	const loadError = results.find((result) => result)
 	if (loadError) error.value = loadError
 	else cacheDashboardSnapshot(id)
@@ -1446,7 +1493,7 @@ const seedProducts = [
 		},
 	},
 	{
-		name: 'Гречка варёная',
+		name: 'Гречка варена',
 		quantity: 100,
 		chars: {
 			calories: 110,
@@ -1459,7 +1506,7 @@ const seedProducts = [
 		},
 	},
 	{
-		name: 'Йогурт натуральный',
+		name: 'Йогурт натуральний',
 		quantity: 100,
 		chars: {
 			calories: 63,
@@ -1472,7 +1519,7 @@ const seedProducts = [
 		},
 	},
 	{
-		name: 'Куриная грудка',
+		name: 'Куряча грудка',
 		quantity: 100,
 		chars: {
 			calories: 165,
@@ -1485,7 +1532,7 @@ const seedProducts = [
 		},
 	},
 	{
-		name: 'Овсяная каша на воде',
+		name: 'Вівсяна каша на воді',
 		quantity: 100,
 		chars: {
 			calories: 71,
@@ -1498,7 +1545,7 @@ const seedProducts = [
 		},
 	},
 	{
-		name: 'Яблоко',
+		name: 'Яблуко',
 		quantity: 100,
 		chars: {
 			calories: 52,

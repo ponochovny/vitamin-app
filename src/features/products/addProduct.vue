@@ -3,28 +3,28 @@
 		@submit.prevent="addFood"
 		class="flex flex-col gap-2 max-w-[400px] mx-auto"
 	>
-		<Input v-model="name" placeholder="Название" required />
+		<Input v-model="name" placeholder="Назва" required />
 		<div class="grid grid-cols-[1fr_120px] gap-2">
 			<Input v-model="quantity" type="number" :placeholder="quantityPlaceholder" />
 			<select
 				v-model="unit"
 				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				aria-label="Единица порции"
+				aria-label="Одиниця порції"
 			>
-				<option value="g">граммы</option>
-				<option value="ml">миллилитры</option>
+				<option value="g">грами</option>
+				<option value="ml">мілілітри</option>
 				<option value="piece">штуки</option>
 			</select>
 		</div>
 		<select
 			v-model="portion"
 			class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-			aria-label="Приблизительная порция"
+			aria-label="Приблизна порція"
 		>
-			<option value="exact">Точная порция</option>
-			<option value="small">Мало — примерная порция</option>
-			<option value="medium">Средне — примерная порция</option>
-			<option value="large">Много — примерная порция</option>
+			<option value="exact">Точна порція</option>
+			<option value="small">Невелика порція — приблизно</option>
+			<option value="medium">Середня порція — приблизно</option>
+			<option value="large">Велика порція — приблизно</option>
 		</select>
 		<p class="font-bold">Characteristics</p>
 		<Input v-model="calories" type="number" placeholder="Calories" />
@@ -53,7 +53,7 @@
 		<p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
 		<p v-if="success" role="status" class="text-green-700">{{ success }}</p>
 		<Button type="submit" :disabled="pending">
-			{{ pending ? 'Сохранение...' : 'Добавить' }}
+			{{ pending ? 'Зберігаємо...' : 'Додати' }}
 		</Button>
 	</form>
 </template>
@@ -79,15 +79,15 @@ const error = shallowRef('')
 const success = shallowRef('')
 const dashboardCache = useState<Record<string, unknown>>('dashboard-cache', () => ({}))
 const quantityPlaceholder = computed(() => {
-	if (unit.value === 'ml') return 'Объём, мл'
-	if (unit.value === 'piece') return 'Количество, шт.'
-	return 'Вес, г'
+	if (unit.value === 'ml') return 'Об’єм, мл'
+	if (unit.value === 'piece') return 'Кількість, шт.'
+	return 'Вага, г'
 })
 
 async function addFood() {
 	if (pending.value) return
 	if (!user.value) {
-		error.value = 'Нужно войти в аккаунт'
+		error.value = 'Потрібно увійти в акаунт'
 		return
 	}
 	const id = user.value.id
@@ -116,7 +116,7 @@ async function addFood() {
 
 	pending.value = false
 	if (saveError) {
-		error.value = 'Не удалось сохранить продукт. Проверьте соединение и попробуйте ещё раз.'
+		error.value = 'Не вдалося зберегти продукт. Перевірте з’єднання та спробуйте ще раз.'
 		return
 	}
 
@@ -132,6 +132,6 @@ async function addFood() {
 	for (const key of Object.keys(dashboardCache.value)) {
 		if (key.startsWith(`${id}:`)) delete dashboardCache.value[key]
 	}
-	success.value = 'Продукт сохранён'
+	success.value = 'Продукт збережено'
 }
 </script>

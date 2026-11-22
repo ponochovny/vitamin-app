@@ -144,7 +144,7 @@ const signIn = async () => {
 	}
 	setLoading(false)
 	if (authError) {
-		error.value = 'Не удалось войти. Проверьте данные или соединение.'
+		error.value = 'Не вдалося увійти. Перевірте дані або з’єднання.'
 	}
 }
 
@@ -161,7 +161,7 @@ const signInGoogle = async () => {
 	})
 	setLoading(false)
 	if (authError) {
-		error.value = 'Не удалось начать вход через Google.'
+		error.value = 'Не вдалося розпочати вхід через Google.'
 	}
 }
 
@@ -173,7 +173,7 @@ const signOut = async () => {
 	const { error: authError } = await supabase.auth.signOut()
 	setLoading(false)
 	if (authError) {
-		error.value = 'Не удалось выйти из аккаунта.'
+		error.value = 'Не вдалося вийти з акаунта.'
 		return
 	}
 	await navigateTo('/')

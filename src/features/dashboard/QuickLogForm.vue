@@ -83,9 +83,9 @@ const preview = computed(() => {
 })
 const drinkLabel = computed(() => ({
 	water: 'воду',
-	coffee: 'кофе',
+	coffee: 'каву',
 	tea: 'чай',
-	other: 'напиток',
+	other: 'напій',
 })[drinkKind.value])
 
 watch(
@@ -162,7 +162,7 @@ function submitNewProduct() {
 	const name = newProductName.value.trim()
 	const selectedQuantity = Number(newProductQuantity.value)
 	if (!name || !Number.isFinite(selectedQuantity) || selectedQuantity <= 0) {
-		formError.value = 'Введите название и количество больше нуля.'
+		formError.value = 'Вкажіть назву та кількість, більшу за нуль.'
 		return
 	}
 
@@ -174,8 +174,8 @@ function submitNewProduct() {
 	})
 	if (!parsedNutrition.valid) {
 		formError.value = parsedNutrition.reason === 'partial'
-			? 'Укажите все четыре значения пищевой ценности или оставьте их пустыми.'
-			: 'Пищевая ценность должна содержать только числа от нуля.'
+			? 'Укажіть усі чотири значення харчової цінності або залиште поля порожніми.'
+			: 'Значення харчової цінності мають бути невід’ємними числами.'
 		return
 	}
 
@@ -198,7 +198,7 @@ function submitDrink() {
 </script>
 
 <template>
-	<section class="space-y-4" aria-label="Быстрая запись">
+	<section class="space-y-4" aria-label="Швидкий запис">
 		<div class="grid grid-cols-2 gap-2">
 			<button
 				type="button"
@@ -207,8 +207,8 @@ function submitDrink() {
 				:aria-pressed="mode === 'food'"
 				@click="mode = 'food'"
 			>
-				Еда
-				<span class="mt-1 block text-xs font-normal text-muted-foreground">Записать продукт</span>
+				Їжа
+				<span class="mt-1 block text-xs font-normal text-muted-foreground">Записати продукт</span>
 			</button>
 			<button
 				type="button"
@@ -217,8 +217,8 @@ function submitDrink() {
 				:aria-pressed="mode === 'drink'"
 				@click="mode = 'drink'"
 			>
-				Напиток
-				<span class="mt-1 block text-xs font-normal text-muted-foreground">Вода, кофе, чай и другое</span>
+				Напій
+				<span class="mt-1 block text-xs font-normal text-muted-foreground">Вода, кава, чай та інші напої</span>
 			</button>
 		</div>
 
@@ -229,73 +229,73 @@ function submitDrink() {
 				:disabled="pending"
 				@click="cancelNewProduct"
 			>
-				Назад к списку продуктов
+				Назад до списку продуктів
 			</button>
 			<div>
-				<h3 class="font-semibold">Добавить блюдо и записать порцию</h3>
+				<h3 class="font-semibold">Додати страву та записати порцію</h3>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Название, единица и количество обязательны. Новое блюдо сохранится для следующих записей.
+					Назва, одиниця виміру та кількість обов’язкові. Нову страву буде збережено для наступних записів.
 				</p>
 			</div>
 			<form class="space-y-3" @submit.prevent="submitNewProduct">
 				<label class="block space-y-1 text-sm font-medium">
-					<span>Название блюда</span>
-					<Input v-model="newProductName" maxlength="120" placeholder="Например, блины с творогом" required />
+					<span>Назва страви</span>
+					<Input v-model="newProductName" maxlength="120" placeholder="Наприклад, млинці з сиром" required />
 				</label>
 				<div class="grid grid-cols-2 gap-3">
 					<label class="block space-y-1 text-sm font-medium">
-						<span>Считать в</span>
+						<span>Одиниця виміру</span>
 						<select
 							v-model="newProductUnit"
 							class="h-10 w-full rounded-md border border-input bg-background px-3"
 						>
 							<option value="piece">Штуках</option>
-							<option value="g">Граммах</option>
-							<option value="ml">Миллилитрах</option>
+							<option value="g">Грамах</option>
+							<option value="ml">Мілілітрах</option>
 						</select>
 					</label>
 					<label class="block space-y-1 text-sm font-medium">
-						<span>Съедено</span>
+						<span>З’їдено</span>
 						<Input v-model="newProductQuantity" type="number" min="0.1" step="any" required />
 					</label>
 				</div>
 				<details class="rounded-lg border border-border px-3 py-2.5">
 					<summary class="cursor-pointer text-sm font-semibold">
-						Добавить пищевую ценность, если известна
+						Додати харчову цінність, якщо вона відома
 					</summary>
 					<p class="mt-2 text-xs text-muted-foreground">
 						На {{ newProductReferenceQuantity }} {{ newProductUnitLabel }}.
-						Если не знаете значения, оставьте все поля пустыми — мы не будем приписывать блюду нулевые калории.
+						Якщо значення невідомі, залиште всі поля порожніми — ми не вважатимемо калорійність страви нульовою.
 					</p>
 					<div class="mt-3 grid grid-cols-2 gap-3">
 						<label class="space-y-1 text-sm">
-							<span class="block">Калории, ккал</span>
+							<span class="block">Калорії, ккал</span>
 							<Input v-model="newProductCalories" type="number" min="0" step="any" />
 						</label>
 						<label class="space-y-1 text-sm">
-							<span class="block">Белки, г</span>
+							<span class="block">Білки, г</span>
 							<Input v-model="newProductProteins" type="number" min="0" step="any" />
 						</label>
 						<label class="space-y-1 text-sm">
-							<span class="block">Жиры, г</span>
+							<span class="block">Жири, г</span>
 							<Input v-model="newProductFats" type="number" min="0" step="any" />
 						</label>
 						<label class="space-y-1 text-sm">
-							<span class="block">Углеводы, г</span>
+							<span class="block">Вуглеводи, г</span>
 							<Input v-model="newProductCarbs" type="number" min="0" step="any" />
 						</label>
 					</div>
 				</details>
 				<p v-if="formError" role="alert" class="text-sm text-destructive">{{ formError }}</p>
 				<Button type="submit" class="w-full" :disabled="pending">
-					{{ pending ? 'Сохраняю…' : 'Сохранить блюдо и запись' }}
+					{{ pending ? 'Зберігаю…' : 'Зберегти страву та запис' }}
 				</Button>
 			</form>
 		</div>
 
 		<form v-else-if="mode === 'food'" class="space-y-3" @submit.prevent="submitFood">
 			<div v-if="recentProducts.length" class="space-y-2">
-				<p class="text-sm font-medium">Недавно записывали</p>
+				<p class="text-sm font-medium">Нещодавно записували</p>
 				<div class="flex flex-wrap gap-2">
 					<button
 						v-for="entry in recentProducts"
@@ -311,16 +311,15 @@ function submitDrink() {
 				</div>
 			</div>
 			<label class="block space-y-1 text-sm font-medium">
-				<span>Найти продукт</span>
-				<Input v-model="productSearch" type="search" placeholder="Например, яблоко" />
+				<span>Знайти продукт</span>
+				<Input v-model="productSearch" type="search" placeholder="Наприклад, яблуко" />
 			</label>
-			<div class="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-1" role="listbox" aria-label="Продукты">
+			<div class="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-1" role="group" aria-label="Продукти">
 				<button
 					v-for="product in matchingProducts"
 					:key="product.id"
 					type="button"
-					role="option"
-					:aria-selected="productId === product.id"
+					:aria-pressed="productId === product.id"
 					class="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
 					:class="productId === product.id ? 'bg-muted font-semibold' : ''"
 					@click="selectProduct(product.id)"
@@ -328,71 +327,71 @@ function submitDrink() {
 					{{ product.name }}
 				</button>
 				<p v-if="!matchingProducts.length" class="px-3 py-2 text-sm text-muted-foreground">
-					Ничего не найдено.
+					Нічого не знайдено.
 				</p>
 			</div>
 			<Button type="button" variant="outline" class="w-full" :disabled="pending" @click="startNewProduct">
-				Добавить блюдо, которого нет в списке
+				Додати страву, якої немає у списку
 			</Button>
 			<p v-if="selectedProduct" class="text-sm text-muted-foreground">
 				<template v-if="selectedProduct.chars.nutritionKnown === false">
-					Пищевая ценность пока не указана.
+					Харчову цінність поки не зазначено.
 				</template>
 				<template v-else>
-					Справочное значение:
+					Довідкове значення:
 					{{ formatNumber(selectedProduct.chars.calories) }} ккал
-					за {{ selectedProduct.quantity }} {{ unitLabel(selectedProduct) }} · оценка
+					за {{ selectedProduct.quantity }} {{ unitLabel(selectedProduct) }} · орієнтовне значення
 				</template>
 			</p>
 			<label class="block space-y-1 text-sm font-medium">
-				<span>Количество, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
+				<span>Кількість, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
 				<Input v-model="quantity" type="number" min="0.1" step="any" required />
 			</label>
 			<p v-if="preview" class="text-sm">
-				В дневник добавится примерно <strong>{{ formatNumber(preview.calories) }} ккал</strong>
-				и {{ formatNumber(preview.proteins) }} г белка.
+				До щоденника буде записано приблизно <strong>{{ formatNumber(preview.calories) }} ккал</strong>
+				і {{ formatNumber(preview.proteins) }} г білка.
 			</p>
 			<Button type="submit" class="w-full" :disabled="pending || !selectedProduct">
-				{{ pending ? 'Сохраняю...' : 'Записать еду' }}
+				{{ pending ? 'Зберігаю...' : 'Записати їжу' }}
 			</Button>
 		</form>
 
 		<form v-else class="space-y-3" @submit.prevent="submitDrink">
 			<label class="block space-y-1 text-sm font-medium">
-				<span>Тип напитка</span>
+				<span>Тип напою</span>
 				<select
 					v-model="drinkKind"
 					class="h-10 w-full rounded-md border border-input bg-background px-3"
 				>
 					<option value="water">Вода</option>
-					<option value="coffee">Кофе</option>
+					<option value="coffee">Кава</option>
 					<option value="tea">Чай</option>
-					<option value="other">Другой напиток</option>
+					<option value="other">Інший напій</option>
 				</select>
 			</label>
 			<label class="block space-y-1 text-sm font-medium">
-				<span>Объём</span>
+				<span>Об’єм</span>
 				<select
 					v-model="volumePreset"
 					class="h-10 w-full rounded-md border border-input bg-background px-3"
 					@change="applyVolumePreset"
 				>
-					<option value="300">Стакан — 300 мл</option>
-					<option value="500">Бутылка — 500 мл</option>
-					<option value="1000">Бутылка — 1 л</option>
-					<option value="1500">Бутылка — 1,5 л</option>
-					<option value="custom">Свой объём</option>
+					<option value="300">Склянка — 300 мл</option>
+					<option value="500">Пляшка — 500 мл</option>
+					<option value="1000">Пляшка — 1 л</option>
+					<option value="1500">Пляшка — 1,5 л</option>
+					<option value="custom">Власний об’єм</option>
 				</select>
 			</label>
 			<label v-if="volumePreset === 'custom'" class="block space-y-1 text-sm font-medium">
-				<span>Объём, мл</span>
+				<span>Об’єм, мл</span>
 				<Input v-model="volumeMl" type="number" min="1" step="1" required />
 			</label>
 			<p class="text-sm text-muted-foreground">
-				В цель засчитывается только вода. Чай, кофе и другие напитки останутся в дневнике, но не увеличат счётчик воды.
+				До цілі зараховується лише вода. Чай, кава та інші напої залишаться у щоденнику, але не збільшать лічильник води.
 			</p>
 			<Button type="submit" class="w-full" :disabled="pending">
-				{{ pending ? 'Сохраняю...' : `Записать ${drinkLabel}` }}
+				{{ pending ? 'Зберігаю...' : `Записати ${drinkLabel}` }}
 			</Button>
 		</form>
 	</section>

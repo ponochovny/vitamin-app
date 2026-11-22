@@ -23,17 +23,17 @@ watch(error, (message) => {
 })
 
 const presets = [
-	{ id: 'light' as const, title: 'Спокойный', summary: '1800 ккал · 1,8 л воды' },
-	{ id: 'balanced' as const, title: 'Сбалансированный', summary: '2000 ккал · 2 л воды' },
-	{ id: 'active' as const, title: 'Активный', summary: '2400 ккал · 2,5 л воды' },
+	{ id: 'light' as const, title: 'Спокійний', summary: '1800 ккал · 1,8 л води' },
+	{ id: 'balanced' as const, title: 'Збалансований', summary: '2000 ккал · 2 л води' },
+	{ id: 'active' as const, title: 'Активний', summary: '2400 ккал · 2,5 л води' },
 ]
 
 const fields: Array<{ key: keyof DailyTargets; label: string; unit: string }> = [
-	{ key: 'calories', label: 'Энергия', unit: 'ккал' },
-	{ key: 'proteins', label: 'Белки', unit: 'г' },
-	{ key: 'fats', label: 'Жиры', unit: 'г' },
-	{ key: 'carbs', label: 'Углеводы', unit: 'г' },
-	{ key: 'beveragesMl', label: 'Цель чистой воды', unit: 'мл' },
+	{ key: 'calories', label: 'Енергія', unit: 'ккал' },
+	{ key: 'proteins', label: 'Білки', unit: 'г' },
+	{ key: 'fats', label: 'Жири', unit: 'г' },
+	{ key: 'carbs', label: 'Вуглеводи', unit: 'г' },
+	{ key: 'beveragesMl', label: 'Ціль чистої води', unit: 'мл' },
 ]
 
 function choosePreset(preset: Exclude<TargetPreset, 'custom'>) {
@@ -45,7 +45,7 @@ function choosePreset(preset: Exclude<TargetPreset, 'custom'>) {
 function save() {
 	const values = Object.values(draft)
 	if (values.some((value) => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
-		error.value = 'Все цели должны быть больше нуля.'
+		error.value = 'Усі цілі мають бути більшими за нуль.'
 		return
 	}
 
@@ -66,7 +66,7 @@ function save() {
 	<form class="space-y-4" @submit.prevent="save">
 		<div>
 			<p class="mt-1 text-sm text-muted-foreground">
-				Демо-пресеты для приложения, а не медицинская рекомендация.
+				Демо-пресети для застосунку, а не медична рекомендація.
 			</p>
 		</div>
 
@@ -105,7 +105,7 @@ function save() {
 		</div>
 
 		<Button type="submit" :disabled="pending">
-			{{ pending ? 'Сохраняю...' : 'Сохранить цель' }}
+			{{ pending ? 'Зберігаю...' : 'Зберегти ціль' }}
 		</Button>
 	</form>
 </template>

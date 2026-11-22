@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, shallowRef } from 'vue'
 import {
 	DEFAULT_REMINDER_TIMES,
 	isValidReminderTimes,
@@ -19,6 +19,8 @@ interface ReminderSettingsRow {
 	evening_at: string
 }
 
+type ReminderSchedule = Omit<ReminderSettingsRow, 'enabled'>
+
 interface ReminderSettingsCache {
 	cachedAt: number
 	settings: ReminderSettingsRow | null
@@ -31,6 +33,8 @@ const settingsCache = useState<Record<string, ReminderSettingsCache>>(
 	'meal-reminder-settings-cache',
 	() => ({}),
 )
+let settingsLoadGeneration = 0
+let componentUnmounted = false
 const loading = shallowRef(true)
 const pending = shallowRef(false)
 const testPushPending = shallowRef(false)
@@ -55,17 +59,43 @@ onMounted(() => {
 	void loadSettings()
 })
 
+onUnmounted(() => {
+	componentUnmounted = true
+	settingsLoadGeneration += 1
+})
+
 async function loadSettings() {
 	loading.value = true
 	error.value = ''
 
 	const userId = props.userId
+	const generation = ++settingsLoadGeneration
+	const isCurrentLoad = () =>
+		!componentUnmounted
+		&& props.userId === userId
+		&& generation === settingsLoadGeneration
 	const cached = settingsCache.value[userId]
 	if (
 		cached &&
 		Date.now() - cached.cachedAt < REMINDER_SETTINGS_CACHE_TTL_MS
 	) {
-		applySettings(cached.settings)
+		applySchedule(cached.settings)
+
+		const { data, error: loadError } = await supabase
+			.from('meal_reminder_settings')
+			.select('enabled')
+			.eq('user_id', userId)
+			.maybeSingle()
+
+		if (!isCurrentLoad()) return
+
+		if (loadError) {
+			error.value = 'Не вдалося завантажити налаштування нагадувань.'
+			loading.value = false
+			return
+		}
+
+		enabledForAccount.value = data?.enabled ?? false
 	} else {
 		const { data, error: loadError } = await supabase
 			.from('meal_reminder_settings')
@@ -73,7 +103,7 @@ async function loadSettings() {
 			.eq('user_id', userId)
 			.maybeSingle()
 
-		if (props.userId !== userId) return
+		if (!isCurrentLoad()) return
 
 		if (loadError) {
 			error.value = 'Не вдалося завантажити налаштування нагадувань.'
@@ -107,6 +137,11 @@ async function loadSettings() {
 function applySettings(settings: ReminderSettingsRow | null) {
 	if (!settings) return
 	enabledForAccount.value = settings.enabled
+	applySchedule(settings)
+}
+
+function applySchedule(settings: ReminderSchedule | null) {
+	if (!settings) return
 	scheduleMode.value = settings.schedule_mode
 	times.morning = normalizeReminderTime(settings.morning_at)
 	times.day = normalizeReminderTime(settings.day_at)
@@ -132,8 +167,8 @@ async function saveSchedule() {
 
 	pending.value = true
 	try {
-		const submittedSettings = captureSubmittedSettings(enabledForAccount.value)
-		const saved = await persistSettings(submittedSettings)
+		const submittedSchedule = captureSubmittedSchedule()
+		const saved = await persistSchedule(submittedSchedule)
 		if (saved) notice.value = 'Розклад нагадувань збережено.'
 	} catch (cause) {
 		error.value = cause instanceof Error
@@ -305,11 +340,86 @@ async function sendTestNotification() {
 function captureSubmittedSettings(enabled: boolean): ReminderSettingsRow {
 	return {
 		enabled,
+		...captureSubmittedSchedule(),
+	}
+}
+
+function captureSubmittedSchedule(): ReminderSchedule {
+	return {
 		schedule_mode: scheduleMode.value,
 		morning_at: times.morning,
 		day_at: times.day,
 		evening_at: times.evening,
 	}
+}
+
+async function persistSchedule(schedule: ReminderSchedule): Promise<boolean> {
+	const userId = props.userId
+	if (authenticatedUser.value?.id !== userId) return false
+	settingsLoadGeneration += 1
+
+	const { data, error: updateError } = await supabase
+		.from('meal_reminder_settings')
+		.update({
+			schedule_mode: schedule.schedule_mode,
+			morning_at: schedule.morning_at,
+			day_at: schedule.day_at,
+			evening_at: schedule.evening_at,
+			updated_at: new Date().toISOString(),
+		})
+		.eq('user_id', userId)
+		.select('user_id')
+		.maybeSingle()
+
+	if (props.userId !== userId || authenticatedUser.value?.id !== userId) return false
+	if (updateError) {
+		error.value = 'Не вдалося зберегти розклад нагадувань.'
+		return false
+	}
+
+	if (!data) {
+		const { error: insertError } = await supabase
+			.from('meal_reminder_settings')
+			.insert({
+				user_id: userId,
+				enabled: false,
+				...schedule,
+			})
+
+		if (props.userId !== userId || authenticatedUser.value?.id !== userId) return false
+
+		if (insertError) {
+			const { data: retried, error: retryError } = await supabase
+				.from('meal_reminder_settings')
+				.update({
+					schedule_mode: schedule.schedule_mode,
+					morning_at: schedule.morning_at,
+					day_at: schedule.day_at,
+					evening_at: schedule.evening_at,
+					updated_at: new Date().toISOString(),
+				})
+				.eq('user_id', userId)
+				.select('user_id')
+				.maybeSingle()
+
+			if (props.userId !== userId || authenticatedUser.value?.id !== userId) return false
+
+			if (retryError || !retried) {
+				error.value = 'Не вдалося зберегти розклад нагадувань.'
+				return false
+			}
+		}
+	}
+
+	const settings: ReminderSettingsRow = {
+		enabled: enabledForAccount.value,
+		...schedule,
+	}
+	settingsCache.value = {
+		...settingsCache.value,
+		[userId]: { cachedAt: Date.now(), settings },
+	}
+	return true
 }
 
 async function persistSettings(
@@ -321,6 +431,8 @@ async function persistSettings(
 		userId !== expectedUserId
 		|| authenticatedUser.value?.id !== expectedUserId
 	) return false
+	settingsLoadGeneration += 1
+
 	const { error: saveError } = await supabase
 		.from('meal_reminder_settings')
 		.upsert({

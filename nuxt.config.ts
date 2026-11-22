@@ -49,9 +49,9 @@ export default defineNuxtConfig({
 	routeRules: {
 		'/': { prerender: false, swr: 300 },
 		'/about': { prerender: false, swr: 3600 },
-		'/signin': { robots: false },
-		'/history': { robots: false },
-		'/auth/callback': { robots: false },
-		'/products/**': { robots: false },
+		'/signin': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+		'/history': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+		'/auth/callback': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+		'/products/**': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
 	},
 })
