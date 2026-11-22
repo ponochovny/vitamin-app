@@ -2,6 +2,16 @@
 
 План развития продукта, UX и технических этапов: [Дорожная карта](./docs/product-roadmap.md).
 
+## SEO
+
+Для production задайте публичный адрес приложения в переменной окружения:
+
+```env
+NUXT_PUBLIC_SITE_URL=https://your-domain.com
+```
+
+Этот адрес используется в canonical-ссылках, Open Graph-тегах, `robots.txt` и `sitemap.xml`.
+
 ## Локальный вход через Google
 
 Приложение использует значения `SUPABASE_URL` и `SUPABASE_KEY` из `.env`.

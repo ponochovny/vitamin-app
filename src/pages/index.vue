@@ -548,6 +548,12 @@
 </template>
 
 <script setup lang="ts">
+useSeoMeta({
+	title: 'Щоденник їжі, води та самопочуття',
+	description: 'Записуйте їжу та напої, задавайте добові цілі й відстежуйте самопочуття у щоденнику Vitamin.',
+	ogTitle: 'Vitamin — ваш щоденник їжі та самопочуття',
+	ogDescription: 'Цілі на день, записи їжі й напоїв, настрій та самопочуття в одному застосунку.',
+})
 import { computed, shallowRef, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { formatLocalHour, getLocalDate } from '~/src/shared/date'

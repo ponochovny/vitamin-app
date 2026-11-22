@@ -350,6 +350,11 @@
 </template>
 
 <script setup lang="ts">
+useSeoMeta({
+	title: 'Журнал',
+	description: 'Переглядайте записи їжі, води та самопочуття в журналі Vitamin.',
+	robots: 'noindex,follow',
+})
 import { computed, shallowRef, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { formatLocalTime } from '~/src/shared/date'

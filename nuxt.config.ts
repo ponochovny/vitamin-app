@@ -7,6 +7,16 @@ export default defineNuxtConfig({
 	runtimeConfig: {
 		public: {
 			vapidPublicKey: '',
+			siteUrl: 'http://localhost:3000',
+		},
+	},
+	app: {
+		head: {
+			charset: 'utf-8',
+			viewport: 'width=device-width, initial-scale=1',
+			htmlAttrs: {
+				lang: 'uk',
+			},
 		},
 	},
 	vite: {
@@ -35,5 +45,13 @@ export default defineNuxtConfig({
 			exclude: ['/', '/signin', '/auth/callback', '/history', '/about'],
 			cookieRedirect: false,
 		},
+	},
+	routeRules: {
+		'/': { prerender: false, swr: 300 },
+		'/about': { prerender: false, swr: 3600 },
+		'/signin': { robots: false },
+		'/history': { robots: false },
+		'/auth/callback': { robots: false },
+		'/products/**': { robots: false },
 	},
 })

@@ -6,6 +6,11 @@
 </template>
 
 <script lang="ts" setup>
+useSeoMeta({
+	title: 'Завершення входу',
+	robots: 'noindex,nofollow',
+})
+
 const supabase = useSupabaseClient()
 const error = shallowRef('')
 
