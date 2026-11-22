@@ -405,41 +405,64 @@
 					<article class="goal-tile rounded-2xl bg-white/10 p-4">
 						<div class="flex items-start justify-between gap-3">
 							<div>
-								<p class="text-sm font-semibold text-white/75">Настрій</p>
-								<p class="mt-1 text-lg font-bold">
-									{{ completedWellbeingCount }} з 3 позначено
+								<p class="text-sm font-semibold text-white/75">
+									Самопочуття протягом дня
 								</p>
+								<p class="mt-1 text-lg font-bold">Як ти почуваєшся?</p>
 							</div>
-							<span class="text-xs text-white/65">
-								{{
-									remainingWellbeingCount
-										? `Ще ${remainingWellbeingCount}`
-										: 'Готово на сьогодні'
-								}}
+							<span
+								class="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground"
+								:aria-label="`${completedWellbeingCount} з 3 позначено`"
+							>
+								{{ completedWellbeingCount }}/3
 							</span>
 						</div>
-						<div class="mt-3 flex gap-2">
+						<div class="mt-3 flex gap-1.5" aria-hidden="true">
+							<span
+								v-for="step in 3"
+								:key="step"
+								class="h-1 flex-1 rounded-full"
+								:class="
+									step <= completedWellbeingCount
+										? 'bg-secondary'
+										: 'bg-white/20'
+								"
+							/>
+						</div>
+						<div class="mt-3 grid grid-cols-3 gap-2">
 							<button
-								v-for="period in wellbeingPeriods"
-								:key="period.key"
+								v-for="checkIn in wellbeingCheckIns"
+								:key="checkIn.key"
 								type="button"
-								class="goal-tile flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-xl bg-white/10 px-2 py-2.5 text-center transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
-								:aria-label="`${period.label}: ${moodOptions.find((option) => option.mood === wellbeingByPeriod[period.key]?.value.mood)?.label ?? 'не позначено'}. Обрати настрій`"
-								@click="openMoodPicker(period.key)"
+								class="mood-checkin flex min-w-0 flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary disabled:cursor-wait disabled:opacity-60"
+								:class="
+									checkIn.mood
+										? 'mood-checkin--done'
+										: 'mood-checkin--empty'
+								"
+								:aria-label="`${checkIn.label}: ${checkIn.mood?.label ?? 'не позначено'}. Обрати або змінити настрій`"
+								:aria-pressed="Boolean(checkIn.mood)"
+								:disabled="wellbeingPending"
+								@click="openMoodPicker(checkIn.key)"
 							>
-								<span class="text-xl leading-none">{{
-									moodOptions.find(
-										(option) =>
-											option.mood === wellbeingByPeriod[period.key]?.value.mood,
-									)?.emoji || '·'
-								}}</span>
-								<span class="text-xs font-semibold">{{ period.label }}</span>
-								<span class="max-w-full truncate text-[11px] text-white/65">{{
-									moodOptions.find(
-										(option) =>
-											option.mood === wellbeingByPeriod[period.key]?.value.mood,
-									)?.label || 'Позначити'
-								}}</span>
+								<span
+									class="mood-checkin__face flex size-9 items-center justify-center rounded-full text-xl leading-none"
+									:class="checkIn.mood ? 'bg-white/55' : 'bg-white/10'"
+									aria-hidden="true"
+								>
+									{{ checkIn.mood?.emoji ?? '+' }}
+								</span>
+								<span class="text-xs font-bold">{{ checkIn.label }}</span>
+								<span
+									class="max-w-full truncate text-[11px]"
+									:class="
+										checkIn.mood
+											? 'text-[#246B4F]'
+											: 'text-white/65'
+									"
+								>
+									{{ checkIn.mood?.label ?? 'Позначити' }}
+								</span>
 							</button>
 						</div>
 					</article>
@@ -837,14 +860,18 @@ const completedWellbeingCount = computed(
 			wellbeingPeriods.some((period) => period.key === entry.value.period),
 		).length,
 )
-const remainingWellbeingCount = computed(() =>
-	Math.max(0, 3 - completedWellbeingCount.value),
-)
 const wellbeingByPeriod = computed(
 	() =>
 		Object.fromEntries(
 			wellbeingEntries.value.map((entry) => [entry.value.period, entry]),
 		) as Partial<Record<'morning' | 'day' | 'evening', WellbeingEntry>>,
+)
+const wellbeingCheckIns = computed(() =>
+	wellbeingPeriods.map((period) => {
+		const moodValue = wellbeingByPeriod.value[period.key]?.value.mood
+		const mood = moodOptions.find((option) => option.mood === moodValue)
+		return { ...period, mood }
+	}),
 )
 const selectedWellbeingPeriod = computed(() =>
 	wellbeingPeriods.find((period) => period.key === selectedMoodPeriod.value),
@@ -1561,6 +1588,28 @@ const seedProducts = [
 </script>
 
 <style scoped>
+.mood-checkin {
+	border: 1px solid transparent;
+}
+
+.mood-checkin--done {
+	border-color: rgb(215 242 106 / 72%);
+	background: linear-gradient(155deg, #e5f2a9, #d7f26a);
+	color: #20342c;
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+
+.mood-checkin--empty {
+	border-color: rgb(255 255 255 / 14%);
+	background: rgb(255 255 255 / 7%);
+	color: white;
+}
+
+.mood-checkin--empty:hover {
+	border-color: rgb(255 255 255 / 32%);
+	background: rgb(255 255 255 / 12%);
+}
+
 .goal-tile {
 	position: relative;
 	border: 1px solid transparent;

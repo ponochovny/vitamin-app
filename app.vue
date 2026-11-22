@@ -31,7 +31,9 @@
 		>
 			<Nav />
 
-			<NuxtPage />
+			<NuxtPage
+				:transition="{ name: 'route', mode: 'out-in' }"
+			/>
 			<Sonner />
 		</div>
 	</div>
@@ -215,6 +217,30 @@ useHead({
 	.auth-app,
 	.preloader-enter-active,
 	.preloader-leave-active {
+		transition-duration: 1ms;
+	}
+}
+
+:global(.route-enter-active),
+:global(.route-leave-active) {
+	transition:
+		opacity 180ms ease,
+		transform 180ms ease;
+}
+
+:global(.route-enter-from) {
+	opacity: 0;
+	transform: translateY(5px);
+}
+
+:global(.route-leave-to) {
+	opacity: 0;
+	transform: translateY(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:global(.route-enter-active),
+	:global(.route-leave-active) {
 		transition-duration: 1ms;
 	}
 }
