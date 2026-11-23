@@ -73,6 +73,7 @@
 			:product="selectedFoodEntry?.product ?? null"
 			:logged="selectedFoodEntry?.logged ?? null"
 			@update:open="productInfoOpen = $event"
+			@saved="updateProductInfo"
 		/>
 
 		<section
@@ -649,7 +650,7 @@ async function loadHistory(id: string, force = false) {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(name, quantity, chars)',
+				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(id, name, quantity, chars)',
 			)
 			.eq('user_id', id)
 			.order('date', { ascending: false }),
@@ -732,6 +733,22 @@ function openProductInfo(entry: HistoryEntry) {
 	if (entry.kind !== 'food' || !entry.product) return
 	selectedFoodEntry.value = entry
 	productInfoOpen.value = true
+}
+
+function updateProductInfo(updatedProduct: FoodProductInfo) {
+	foodLogs.value = foodLogs.value.map((log) =>
+		log.products?.id === updatedProduct.id
+			? { ...log, products: updatedProduct }
+			: log,
+	)
+	if (selectedFoodEntry.value?.product?.id === updatedProduct.id) {
+		selectedFoodEntry.value = {
+			...selectedFoodEntry.value,
+			product: updatedProduct,
+		}
+	}
+	const id = userId.value
+	if (id) invalidateDashboardCache(id)
 }
 
 async function saveEntry() {

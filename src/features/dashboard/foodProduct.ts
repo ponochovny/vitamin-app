@@ -6,9 +6,11 @@ export interface FoodNutrition {
 }
 
 export interface FoodProductInfo {
+	id: string
 	name: string
 	quantity: number
 	chars: FoodNutrition & {
+		vitamins?: Record<string, number>
 		unit?: 'g' | 'ml' | 'piece'
 		nutritionKnown?: boolean
 	}

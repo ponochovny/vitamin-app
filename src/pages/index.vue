@@ -45,6 +45,7 @@
 					@food="logFood"
 					@create-food="createAndLogFood"
 					@drink="logDrink"
+					@edit-product="openProductInfoForProduct"
 				/>
 			</DialogContent>
 		</Dialog>
@@ -71,6 +72,7 @@
 			:product="selectedFoodRecord?.product ?? null"
 			:logged="selectedFoodRecord?.logged ?? null"
 			@update:open="productInfoOpen = $event"
+			@saved="updateProductInfo"
 		/>
 		<Dialog v-model:open="moodDialogOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
@@ -914,6 +916,50 @@ function openProductInfo(record: DiaryRecord) {
 	productInfoOpen.value = true
 }
 
+function openProductInfoForProduct(product: Product) {
+	selectedFoodRecord.value = {
+		id: '',
+		kind: 'food',
+		title: product.name,
+		detail: '',
+		calories: product.chars.calories,
+		volumeMl: 0,
+		nutritionKnown: product.chars.nutritionKnown !== false,
+		createdAt: '',
+		product,
+		logged: null,
+	}
+	productInfoOpen.value = true
+}
+
+function updateProductInfo(updatedProduct: FoodProductInfo) {
+	products.value = products.value.map((product) =>
+		product.id === updatedProduct.id
+			? {
+					...product,
+					...updatedProduct,
+					chars: { ...product.chars, ...updatedProduct.chars },
+				}
+			: product,
+	)
+	foodLogs.value = foodLogs.value.map((log) =>
+		log.products?.id === updatedProduct.id
+			? { ...log, products: updatedProduct }
+			: log,
+	)
+	if (selectedFoodRecord.value?.product?.id === updatedProduct.id) {
+		selectedFoodRecord.value = {
+			...selectedFoodRecord.value,
+			product: updatedProduct,
+		}
+	}
+	const id = userId.value
+	if (id) {
+		invalidateDashboardCache(id)
+		invalidateHistoryCache(id)
+	}
+}
+
 function openMoodPicker(period: WellbeingPeriodKey) {
 	selectedMoodPeriod.value = period
 	moodDialogOpen.value = true
@@ -1085,7 +1131,7 @@ async function loadDayEntries(id: string): Promise<string | null> {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(name, quantity, chars)',
+				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(id, name, quantity, chars)',
 			)
 			.eq('user_id', id)
 			.eq('date', today)

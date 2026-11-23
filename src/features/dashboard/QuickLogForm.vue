@@ -36,6 +36,7 @@ const emit = defineEmits<{
 		idempotencyKey: string
 	}]
 	drink: [entry: { kind: 'water' | 'coffee' | 'tea' | 'other'; volumeMl: number }]
+	editProduct: [product: Product]
 }>()
 
 const mode = shallowRef<'food' | 'drink'>('food')
@@ -343,6 +344,16 @@ function submitDrink() {
 					за {{ selectedProduct.quantity }} {{ unitLabel(selectedProduct) }} · орієнтовне значення
 				</template>
 			</p>
+			<Button
+				v-if="selectedProduct"
+				type="button"
+				variant="outline"
+				class="w-full"
+				:disabled="pending"
+				@click="emit('editProduct', selectedProduct)"
+			>
+				Редагувати харчову цінність
+			</Button>
 			<label class="block space-y-1 text-sm font-medium">
 				<span>Кількість, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
 				<Input v-model="quantity" type="number" min="0.1" step="any" required />
