@@ -1,3 +1,5 @@
+import { parseDecimalInput } from '../../shared/numbers'
+
 export interface RecentFoodEntry {
 	productId: string | null
 	quantity: number
@@ -26,7 +28,10 @@ export function parseOptionalNutrition(
 	}
 
 	const nutrition = Object.fromEntries(
-		Object.entries(values).map(([key, value]) => [key, Number(value)]),
+		Object.entries(values).map(([key, value]) => [
+			key,
+			parseDecimalInput(String(value)),
+		]),
 	) as FoodNutrition
 	if (Object.values(nutrition).some((value) => !Number.isFinite(value) || value < 0)) {
 		return { valid: false, reason: 'invalid' }

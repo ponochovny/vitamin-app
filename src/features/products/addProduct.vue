@@ -1,11 +1,12 @@
 <template>
-	<form
-		@submit.prevent="addFood"
-		class="flex flex-col gap-2 max-w-[400px] mx-auto"
-	>
+	<form @submit.prevent="addFood" class="flex flex-col gap-2 max-w-100 mx-auto">
 		<Input v-model="name" placeholder="Назва" required />
 		<div class="grid grid-cols-[1fr_120px] gap-2">
-			<Input v-model="quantity" type="number" :placeholder="quantityPlaceholder" />
+			<Input
+				v-model="quantity"
+				type="number"
+				:placeholder="quantityPlaceholder"
+			/>
 			<select
 				v-model="unit"
 				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -27,10 +28,10 @@
 			<option value="large">Велика порція — приблизно</option>
 		</select>
 		<p class="font-bold">Characteristics</p>
-		<Input v-model="calories" type="number" placeholder="Calories" />
-		<Input v-model="fats" type="number" step="any" placeholder="Fats" />
-		<Input v-model="proteins" type="number" step="any" placeholder="Proteins" />
-		<Input v-model="carbs" type="number" step="any" placeholder="Carbs" />
+		<Input v-model="calories" type="text" inputmode="decimal" placeholder="Calories" />
+		<Input v-model="fats" type="text" inputmode="decimal" placeholder="Fats" />
+		<Input v-model="proteins" type="text" inputmode="decimal" placeholder="Proteins" />
+		<Input v-model="carbs" type="text" inputmode="decimal" placeholder="Carbs" />
 		<p>Vitamins</p>
 		<Input
 			v-model="vitaminA"
@@ -60,6 +61,7 @@
 
 <script lang="ts" setup>
 import addProduct from '~/src/entities/product/api/addProduct'
+import { parseDecimalInput } from '~/src/shared/numbers'
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
@@ -67,17 +69,20 @@ const name = shallowRef('')
 const quantity = shallowRef('')
 const unit = shallowRef<'g' | 'ml' | 'piece'>('g')
 const portion = shallowRef<'exact' | 'small' | 'medium' | 'large'>('exact')
-const calories = shallowRef<number | null>(null)
-const fats = shallowRef<number | null>(null)
-const proteins = shallowRef<number | null>(null)
-const carbs = shallowRef<number | null>(null)
+const calories = shallowRef('')
+const fats = shallowRef('')
+const proteins = shallowRef('')
+const carbs = shallowRef('')
 const vitaminA = shallowRef<number | null>(null)
 const vitaminB = shallowRef<number | null>(null)
 const vitaminC = shallowRef<number | null>(null)
 const pending = shallowRef(false)
 const error = shallowRef('')
 const success = shallowRef('')
-const dashboardCache = useState<Record<string, unknown>>('dashboard-cache', () => ({}))
+const dashboardCache = useState<Record<string, unknown>>(
+	'dashboard-cache',
+	() => ({}),
+)
 const quantityPlaceholder = computed(() => {
 	if (unit.value === 'ml') return 'Об’єм, мл'
 	if (unit.value === 'piece') return 'Кількість, шт.'
@@ -91,6 +96,12 @@ async function addFood() {
 		return
 	}
 	const id = user.value.id
+	const nutritionValues = [calories.value, fats.value, proteins.value, carbs.value]
+		.map((value) => value.trim() ? parseDecimalInput(value) : 0)
+	if (nutritionValues.some((value) => !Number.isFinite(value) || value < 0)) {
+		error.value = 'Вкажіть невід’ємні числа для калорій і БЖУ.'
+		return
+	}
 
 	pending.value = true
 	error.value = ''
@@ -100,10 +111,10 @@ async function addFood() {
 		name: name.value,
 		quantity: Number(quantity.value),
 		chars: {
-			calories: calories.value ?? 0,
-			fats: fats.value ?? 0,
-			proteins: proteins.value ?? 0,
-			carbs: carbs.value ?? 0,
+			calories: nutritionValues[0],
+			fats: nutritionValues[1],
+			proteins: nutritionValues[2],
+			carbs: nutritionValues[3],
 			unit: unit.value,
 			portion: portion.value,
 			vitamins: {
@@ -116,7 +127,8 @@ async function addFood() {
 
 	pending.value = false
 	if (saveError) {
-		error.value = 'Не вдалося зберегти продукт. Перевірте з’єднання та спробуйте ще раз.'
+		error.value =
+			'Не вдалося зберегти продукт. Перевірте з’єднання та спробуйте ще раз.'
 		return
 	}
 

@@ -25,7 +25,7 @@
 		</Transition>
 
 		<div
-			v-if="authReady"
+			v-show="authReady"
 			class="auth-app mx-auto min-h-dvh max-w-6xl px-3 pt-3 sm:px-6 sm:pt-5"
 			:class="{ 'auth-app--ready': authContentVisible }"
 		>

@@ -53,12 +53,12 @@ describe('diary helpers', () => {
 		})).toEqual({ valid: true, nutrition: null })
 		expect(parseOptionalNutrition({
 			calories: '210',
-			proteins: '8',
-			fats: '9',
+			proteins: '8,5',
+			fats: '9.2',
 			carbs: '24',
 		})).toEqual({
 			valid: true,
-			nutrition: { calories: 210, proteins: 8, fats: 9, carbs: 24 },
+			nutrition: { calories: 210, proteins: 8.5, fats: 9.2, carbs: 24 },
 		})
 		expect(parseOptionalNutrition({
 			calories: '210',

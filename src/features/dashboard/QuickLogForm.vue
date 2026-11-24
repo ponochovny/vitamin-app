@@ -47,10 +47,10 @@ const quantity = shallowRef<number | ''>('')
 const newProductName = shallowRef('')
 const newProductUnit = shallowRef<ProductUnit>('piece')
 const newProductQuantity = shallowRef<number | ''>(1)
-const newProductCalories = shallowRef<number | ''>('')
-const newProductProteins = shallowRef<number | ''>('')
-const newProductFats = shallowRef<number | ''>('')
-const newProductCarbs = shallowRef<number | ''>('')
+const newProductCalories = shallowRef('')
+const newProductProteins = shallowRef('')
+const newProductFats = shallowRef('')
+const newProductCarbs = shallowRef('')
 const newProductRequestId = shallowRef('')
 const formError = shallowRef('')
 const drinkKind = shallowRef<'water' | 'coffee' | 'tea' | 'other'>('water')
@@ -271,19 +271,19 @@ function submitDrink() {
 					<div class="mt-3 grid grid-cols-2 gap-3">
 						<label class="space-y-1 text-sm">
 							<span class="block">Калорії, ккал</span>
-							<Input v-model="newProductCalories" type="number" min="0" step="any" />
+							<Input v-model="newProductCalories" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Білки, г</span>
-							<Input v-model="newProductProteins" type="number" min="0" step="any" />
+							<Input v-model="newProductProteins" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Жири, г</span>
-							<Input v-model="newProductFats" type="number" min="0" step="any" />
+							<Input v-model="newProductFats" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Вуглеводи, г</span>
-							<Input v-model="newProductCarbs" type="number" min="0" step="any" />
+							<Input v-model="newProductCarbs" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
 						</label>
 					</div>
 				</details>

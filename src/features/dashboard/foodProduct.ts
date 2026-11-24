@@ -20,9 +20,3 @@ export interface LoggedFoodInfo {
 	quantity: number
 	nutrition: FoodNutrition
 }
-
-export function parseNutritionInput(value: string): number {
-	const normalized = value.trim().replace(',', '.')
-	if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return Number.NaN
-	return Number(normalized)
-}

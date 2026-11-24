@@ -8,10 +8,10 @@ import {
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
 import {
-	parseNutritionInput,
 	type FoodProductInfo,
 	type LoggedFoodInfo,
 } from './foodProduct'
+import { parseDecimalInput } from '~/src/shared/numbers'
 
 const props = defineProps<{
 	open: boolean
@@ -92,10 +92,10 @@ async function saveNutrition() {
 	}
 
 	const values = {
-		calories: parseNutritionInput(draft.calories),
-		proteins: parseNutritionInput(draft.proteins),
-		fats: parseNutritionInput(draft.fats),
-		carbs: parseNutritionInput(draft.carbs),
+		calories: parseDecimalInput(draft.calories),
+		proteins: parseDecimalInput(draft.proteins),
+		fats: parseDecimalInput(draft.fats),
+		carbs: parseDecimalInput(draft.carbs),
 	}
 	if (
 		nutrientLabels.some(
