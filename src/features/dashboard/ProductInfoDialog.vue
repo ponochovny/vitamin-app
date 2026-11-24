@@ -26,7 +26,7 @@ const editing = shallowRef(false)
 const pending = shallowRef(false)
 const editError = shallowRef('')
 const editSuccess = shallowRef('')
-const draft = reactive({
+const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string | number>>({
 	calories: '',
 	proteins: '',
 	fats: '',
@@ -89,7 +89,7 @@ async function saveNutrition() {
 	if (
 		nutrientLabels.some(
 			({ key }) =>
-				!draft[key].trim() ||
+				!String(draft[key]).trim() ||
 				!Number.isFinite(values[key]) ||
 				values[key] < 0,
 		)
@@ -128,7 +128,7 @@ async function saveNutrition() {
 	})
 	editing.value = false
 	editSuccess.value =
-		'Харчову цінність збережено для нових записів. Раніше збережені записи не змінено.'
+		'Харчову цінність збережено. Усі записи цього продукту в журналі перераховано за новими значеннями.'
 }
 </script>
 

@@ -738,13 +738,32 @@ function openProductInfo(entry: HistoryEntry) {
 function updateProductInfo(updatedProduct: FoodProductInfo) {
 	foodLogs.value = foodLogs.value.map((log) =>
 		log.products?.id === updatedProduct.id
-			? { ...log, products: updatedProduct }
+			? {
+					...log,
+					...scaleNutrition(
+						updatedProduct.chars,
+						Number(log.quantity),
+						updatedProduct.quantity,
+					),
+					products: updatedProduct,
+				}
 			: log,
 	)
 	if (selectedFoodEntry.value?.product?.id === updatedProduct.id) {
+		const selected = selectedFoodEntry.value
 		selectedFoodEntry.value = {
-			...selectedFoodEntry.value,
+			...selected,
 			product: updatedProduct,
+			logged: selected.logged
+				? {
+						...selected.logged,
+						nutrition: scaleNutrition(
+							updatedProduct.chars,
+							selected.logged.quantity,
+							updatedProduct.quantity,
+						),
+					}
+				: null,
 		}
 	}
 	const id = userId.value
