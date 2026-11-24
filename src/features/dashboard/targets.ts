@@ -6,6 +6,22 @@ export interface DailyTargets {
 	beveragesMl: number
 }
 
+export interface FoodNutritionLog {
+	calories: number
+	proteins: number
+	fats: number
+	carbs: number
+	products: { chars: { nutritionKnown?: boolean } } | null
+}
+
+export interface DailyNutritionSummary {
+	calories: number
+	proteins: number
+	fats: number
+	carbs: number
+	nutritionUnknown: boolean
+}
+
 export type TargetPreset = 'light' | 'balanced' | 'active' | 'custom'
 
 export const DEFAULT_TARGETS: DailyTargets = {
@@ -37,6 +53,31 @@ export const TARGET_PRESETS: Record<Exclude<TargetPreset, 'custom'>, DailyTarget
 export function getProgressPercent(value: number, target: number): number {
 	if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) return 0
 	return Math.min(100, Math.max(0, (value / target) * 100))
+}
+
+export function summarizeFoodNutrition(
+	logs: readonly FoodNutritionLog[],
+): DailyNutritionSummary {
+	return logs.reduce<DailyNutritionSummary>(
+		(total, entry) => {
+			return {
+				calories: total.calories + Number(entry.calories || 0),
+				proteins: total.proteins + Number(entry.proteins || 0),
+				fats: total.fats + Number(entry.fats || 0),
+				carbs: total.carbs + Number(entry.carbs || 0),
+				nutritionUnknown:
+					total.nutritionUnknown ||
+					entry.products?.chars.nutritionKnown === false,
+			}
+		},
+		{
+			calories: 0,
+			proteins: 0,
+			fats: 0,
+			carbs: 0,
+			nutritionUnknown: false,
+		},
+	)
 }
 
 export function scaleNutrition(

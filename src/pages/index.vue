@@ -230,32 +230,22 @@
 						<div
 							class="goal-ring goal-ring--large"
 							:style="
-								ringStyle(
-									nutrition.nutritionUnknown
-										? 0
-										: progress(nutrition.calories, targets.calories),
-								)
+								ringStyle(progress(nutrition.calories, targets.calories))
 							"
 							role="progressbar"
 							:aria-valuenow="
-								nutrition.nutritionUnknown
-									? undefined
-									: Math.round(progress(nutrition.calories, targets.calories))
+								Math.round(progress(nutrition.calories, targets.calories))
 							"
 							aria-valuemin="0"
 							aria-valuemax="100"
 							:aria-label="
 								nutrition.nutritionUnknown
-									? 'Калорії невідомі'
+									? `Часткова сума калорій: ${formatNumber(nutrition.calories)} ккал. Є записи без харчової цінності.`
 									: `Калорії: ${formatNumber(nutrition.calories)} з ${formatNumber(targets.calories)} ккал`
 							"
 						>
 							<span class="goal-ring__content">
-								<strong>{{
-									nutrition.nutritionUnknown
-										? '—'
-										: formatNumber(nutrition.calories)
-								}}</strong>
+								<strong>{{ formatNumber(nutrition.calories) }}</strong>
 								<small>ккал</small>
 							</span>
 						</div>
@@ -264,14 +254,14 @@
 							<p class="mt-2 text-base font-bold leading-tight">
 								{{
 									nutrition.nutritionUnknown
-										? 'Харчову цінність не зазначено'
+										? 'Часткова сума'
 										: `з ${formatNumber(targets.calories)} ккал`
 								}}
 							</p>
 							<p class="mt-1 text-xs text-white/65">
 								{{
 									nutrition.nutritionUnknown
-										? 'Невідомо'
+										? 'Є записи без даних'
 										: `${Math.round(progress(nutrition.calories, targets.calories))}% цілі`
 								}}
 							</p>
@@ -298,35 +288,27 @@
 								class="goal-ring goal-ring--small"
 								:style="
 									ringStyle(
-										nutrition.nutritionUnknown
-											? 0
-											: progress(nutrition[macro.key], targets[macro.key]),
+										progress(nutrition[macro.key], targets[macro.key]),
 										undefined,
 										macro.accent,
 									)
 								"
 								role="progressbar"
 								:aria-valuenow="
-									nutrition.nutritionUnknown
-										? undefined
-										: Math.round(
-												progress(nutrition[macro.key], targets[macro.key]),
-											)
+									Math.round(
+										progress(nutrition[macro.key], targets[macro.key]),
+									)
 								"
 								aria-valuemin="0"
 								aria-valuemax="100"
 								:aria-label="
 									nutrition.nutritionUnknown
-										? `${macro.label}: харчову цінність не зазначено`
+										? `${macro.label}: часткова сума ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів; є записи без харчової цінності`
 										: `${macro.label}: ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів`
 								"
 							>
 								<span class="goal-ring__content">
-									<strong>{{
-										nutrition.nutritionUnknown
-											? '—'
-											: formatNumber(nutrition[macro.key])
-									}}</strong>
+									<strong>{{ formatNumber(nutrition[macro.key]) }}</strong>
 									<small>г</small>
 								</span>
 							</div>
@@ -336,7 +318,7 @@
 							<p class="mt-1 text-[11px] text-white/65">
 								{{
 									nutrition.nutritionUnknown
-										? 'Невідомо'
+										? 'Частково'
 										: `${Math.round(
 												progress(nutrition[macro.key], targets[macro.key]),
 											)}% цілі`
@@ -614,6 +596,7 @@ import {
 	DEFAULT_TARGETS,
 	getProgressPercent,
 	scaleNutrition,
+	summarizeFoodNutrition,
 	type DailyTargets,
 	type TargetPreset,
 } from '~/src/features/dashboard/targets'
@@ -797,27 +780,7 @@ const guestGoalPreview = [
 ] as const
 
 const nutrition = computed(() =>
-	foodLogs.value.reduce(
-		(total, entry) => {
-			if (entry.products?.chars.nutritionKnown === false) {
-				return { ...total, nutritionUnknown: true }
-			}
-			return {
-				calories: total.calories + Number(entry.calories || 0),
-				proteins: total.proteins + Number(entry.proteins || 0),
-				fats: total.fats + Number(entry.fats || 0),
-				carbs: total.carbs + Number(entry.carbs || 0),
-				nutritionUnknown: total.nutritionUnknown,
-			}
-		},
-		{
-			calories: 0,
-			proteins: 0,
-			fats: 0,
-			carbs: 0,
-			nutritionUnknown: false,
-		},
-	),
+	summarizeFoodNutrition(foodLogs.value),
 )
 const pureWater = computed(() =>
 	drinkLogs.value

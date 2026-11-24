@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getProgressPercent, scaleNutrition } from './targets'
+import {
+	getProgressPercent,
+	scaleNutrition,
+	summarizeFoodNutrition,
+} from './targets'
 
 describe('dashboard target calculations', () => {
 	it('clamps progress to the visible dial range', () => {
@@ -41,6 +45,33 @@ describe('dashboard target calculations', () => {
 			proteins: 0,
 			fats: 0,
 			carbs: 0,
+		})
+	})
+
+	it('shows known nutrition as a partial total when another food is unknown', () => {
+		expect(
+			summarizeFoodNutrition([
+				{
+					calories: 240,
+					proteins: 8,
+					fats: 4,
+					carbs: 36,
+					products: { chars: { nutritionKnown: true } },
+				},
+				{
+					calories: 60,
+					proteins: 1,
+					fats: 1,
+					carbs: 3,
+					products: { chars: { nutritionKnown: false } },
+				},
+			]),
+		).toEqual({
+			calories: 300,
+			proteins: 9,
+			fats: 5,
+			carbs: 39,
+			nutritionUnknown: true,
 		})
 	})
 })

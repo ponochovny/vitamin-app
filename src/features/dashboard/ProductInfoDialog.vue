@@ -7,7 +7,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
-import type { FoodProductInfo, LoggedFoodInfo } from './foodProduct'
+import {
+	parseNutritionInput,
+	type FoodProductInfo,
+	type LoggedFoodInfo,
+} from './foodProduct'
 
 const props = defineProps<{
 	open: boolean
@@ -26,7 +30,8 @@ const editing = shallowRef(false)
 const pending = shallowRef(false)
 const editError = shallowRef('')
 const editSuccess = shallowRef('')
-const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string | number>>({
+const nameDraft = shallowRef('')
+const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string>>({
 	calories: '',
 	proteins: '',
 	fats: '',
@@ -50,6 +55,7 @@ function formatNumber(value: number) {
 
 function startEditing() {
 	if (!props.product || !user.value) return
+	nameDraft.value = props.product.name
 	for (const { key } of nutrientLabels) {
 		draft[key] =
 			props.product.chars.nutritionKnown === false
@@ -79,12 +85,17 @@ async function saveNutrition() {
 	const product = props.product
 	const userId = user.value?.id
 	if (!product || !userId || pending.value) return
+	const name = nameDraft.value.trim()
+	if (!name) {
+		editError.value = 'Вкажіть назву продукту.'
+		return
+	}
 
 	const values = {
-		calories: Number(draft.calories),
-		proteins: Number(draft.proteins),
-		fats: Number(draft.fats),
-		carbs: Number(draft.carbs),
+		calories: parseNutritionInput(draft.calories),
+		proteins: parseNutritionInput(draft.proteins),
+		fats: parseNutritionInput(draft.fats),
+		carbs: parseNutritionInput(draft.carbs),
 	}
 	if (
 		nutrientLabels.some(
@@ -108,7 +119,7 @@ async function saveNutrition() {
 	}
 	const { data, error } = await supabase
 		.from('products')
-		.update({ chars })
+		.update({ name, chars })
 		.eq('id', product.id)
 		.eq('user_id', userId)
 		.select('id, name, quantity, chars')
@@ -128,7 +139,7 @@ async function saveNutrition() {
 	})
 	editing.value = false
 	editSuccess.value =
-		'Харчову цінність збережено. Усі записи цього продукту в журналі перераховано за новими значеннями.'
+		'Назву й харчову цінність збережено. Записи цього продукту в журналі перераховано.'
 }
 </script>
 
@@ -159,9 +170,14 @@ async function saveNutrition() {
 						</Button>
 					</div>
 					<form v-if="editing" class="mt-3 space-y-3" @submit.prevent="saveNutrition">
+						<label class="block space-y-1 text-sm font-medium">
+							<span>Назва продукту</span>
+							<Input v-model="nameDraft" type="text" required />
+						</label>
 						<p class="text-sm text-muted-foreground">
 							Вкажіть значення для {{ formatNumber(product.quantity) }}
 							{{ unitLabel(product.chars.unit) }} — саме така кількість є довідковою для цього продукту.
+							Дробові значення вводьте через кому або крапку.
 						</p>
 						<label
 							v-for="nutrient in nutrientLabels"
@@ -171,9 +187,9 @@ async function saveNutrition() {
 							<span>{{ nutrient.label }}, {{ nutrient.unit }}</span>
 							<Input
 								v-model="draft[nutrient.key]"
-								type="number"
-								min="0"
-								step="any"
+								type="text"
+								inputmode="decimal"
+								placeholder="Наприклад, 6,7"
 								required
 							/>
 						</label>
