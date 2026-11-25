@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import {
 	filterProducts,
 	getApproximatePortionQuantities,
@@ -57,6 +57,8 @@ const newProductFats = shallowRef('')
 const newProductCarbs = shallowRef('')
 const newProductRequestId = shallowRef('')
 const formError = shallowRef('')
+const newProductForm = useTemplateRef<HTMLFormElement>('newProductForm')
+const addProductButtonContainer = useTemplateRef<HTMLDivElement>('addProductButtonContainer')
 const drinkKind = shallowRef<'water' | 'coffee' | 'tea' | 'other'>('water')
 const volumePreset = shallowRef('300')
 const volumeMl = shallowRef<number | ''>(300)
@@ -139,7 +141,7 @@ function selectProduct(id: string, recentQuantity?: number) {
 	productSearch.value = ''
 }
 
-function startNewProduct() {
+async function startNewProduct() {
 	newProductName.value = productSearch.value.trim()
 	newProductUnit.value = 'piece'
 	newProductQuantity.value = 1
@@ -151,12 +153,16 @@ function startNewProduct() {
 	newProductRequestId.value = globalThis.crypto?.randomUUID?.()
 		?? `product-${Date.now()}-${Math.random().toString(36).slice(2)}`
 	creatingProduct.value = true
+	await nextTick()
+	newProductForm.value?.querySelector<HTMLInputElement>('input')?.focus()
 }
 
-function cancelNewProduct() {
+async function cancelNewProduct() {
 	creatingProduct.value = false
 	formError.value = ''
 	newProductRequestId.value = ''
+	await nextTick()
+	addProductButtonContainer.value?.querySelector('button')?.focus()
 }
 
 function applyVolumePreset() {
@@ -222,7 +228,7 @@ function submitDrink() {
 		<div class="grid grid-cols-2 gap-2">
 			<button
 				type="button"
-				class="rounded-lg border p-3 text-left font-semibold"
+				class="rounded-lg border p-3 text-left font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				:class="mode === 'food' ? 'border-primary bg-muted' : ''"
 				:aria-pressed="mode === 'food'"
 				@click="mode = 'food'"
@@ -232,7 +238,7 @@ function submitDrink() {
 			</button>
 			<button
 				type="button"
-				class="rounded-lg border p-3 text-left font-semibold"
+				class="rounded-lg border p-3 text-left font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				:class="mode === 'drink' ? 'border-primary bg-muted' : ''"
 				:aria-pressed="mode === 'drink'"
 				@click="mode = 'drink'"
@@ -245,7 +251,7 @@ function submitDrink() {
 		<div v-if="mode === 'food' && creatingProduct" class="space-y-4">
 			<button
 				type="button"
-				class="text-sm font-semibold text-primary underline-offset-2 hover:underline"
+				class="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				:disabled="pending"
 				@click="cancelNewProduct"
 			>
@@ -257,7 +263,7 @@ function submitDrink() {
 					Назва, одиниця виміру та кількість обов’язкові. Нову страву буде збережено для наступних записів.
 				</p>
 			</div>
-			<form class="space-y-3" @submit.prevent="submitNewProduct">
+			<form ref="newProductForm" class="space-y-3" @submit.prevent="submitNewProduct">
 				<label class="block space-y-1 text-sm font-medium">
 					<span>Назва страви</span>
 					<Input v-model="newProductName" maxlength="120" placeholder="Наприклад, млинці з сиром" required />
@@ -267,7 +273,7 @@ function submitDrink() {
 						<span>Одиниця виміру</span>
 						<select
 							v-model="newProductUnit"
-							class="h-10 w-full rounded-md border border-input bg-background px-3"
+							class="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 						>
 							<option value="piece">Штуках</option>
 							<option value="g">Грамах</option>
@@ -286,7 +292,7 @@ function submitDrink() {
 							v-for="portion in newProductPortions"
 							:key="portion"
 							type="button"
-							class="rounded-full border border-border px-3 py-2 text-sm hover:border-primary"
+							class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 							:aria-pressed="Number(newProductQuantity) === portion"
 							@click="newProductQuantity = portion"
 						>
@@ -303,7 +309,7 @@ function submitDrink() {
 					</p>
 				</div>
 				<details class="rounded-lg border border-border px-3 py-2.5">
-					<summary class="cursor-pointer text-sm font-semibold">
+					<summary class="flex min-h-11 cursor-pointer items-center text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
 						Додати харчову цінність, якщо вона відома
 					</summary>
 					<p class="mt-2 text-xs text-muted-foreground">
@@ -330,7 +336,7 @@ function submitDrink() {
 					</div>
 				</details>
 				<p v-if="formError" role="alert" class="text-sm text-destructive">{{ formError }}</p>
-				<Button type="submit" class="w-full" :disabled="pending">
+				<Button type="submit" class="min-h-11 w-full" :disabled="pending">
 					{{ pending ? 'Зберігаю…' : 'Зберегти страву та запис' }}
 				</Button>
 			</form>
@@ -344,7 +350,7 @@ function submitDrink() {
 						v-for="entry in recentProducts"
 						:key="entry.product.id"
 						type="button"
-						class="rounded-full border border-border px-3 py-2 text-sm hover:border-primary"
+						class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 						:class="productId === entry.product.id ? 'border-primary bg-muted' : ''"
 						:aria-pressed="productId === entry.product.id"
 						@click="selectProduct(entry.product.id, entry.quantity)"
@@ -363,19 +369,27 @@ function submitDrink() {
 					:key="product.id"
 					type="button"
 					:aria-pressed="productId === product.id"
-					class="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
+					class="min-h-11 w-full rounded px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 					:class="productId === product.id ? 'bg-muted font-semibold' : ''"
 					@click="selectProduct(product.id)"
 				>
 					{{ product.name }}
 				</button>
-				<p v-if="!matchingProducts.length" class="px-3 py-2 text-sm text-muted-foreground">
+				<p v-if="!matchingProducts.length" role="status" class="px-3 py-2 text-sm text-muted-foreground">
 					Нічого не знайдено.
 				</p>
 			</div>
-			<Button type="button" variant="outline" class="w-full" :disabled="pending" @click="startNewProduct">
-				Додати страву, якої немає у списку
-			</Button>
+			<div ref="addProductButtonContainer">
+				<Button
+					type="button"
+					variant="outline"
+					class="min-h-11 w-full"
+					:disabled="pending"
+					@click="startNewProduct"
+				>
+					Додати страву, якої немає у списку
+				</Button>
+			</div>
 			<p v-if="selectedProduct" class="text-sm text-muted-foreground">
 				<template v-if="selectedProduct.chars.nutritionKnown === false">
 					Харчову цінність поки не зазначено.
@@ -390,7 +404,7 @@ function submitDrink() {
 				v-if="selectedProduct"
 				type="button"
 				variant="outline"
-				class="w-full"
+				class="min-h-11 w-full"
 				:disabled="pending"
 				@click="emit('editProduct', selectedProduct)"
 			>
@@ -407,7 +421,7 @@ function submitDrink() {
 						v-for="portion in selectedProductPortions"
 						:key="portion"
 						type="button"
-						class="rounded-full border border-border px-3 py-2 text-sm hover:border-primary"
+						class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 						:aria-pressed="Number(quantity) === portion"
 						@click="quantity = portion"
 					>
@@ -430,7 +444,7 @@ function submitDrink() {
 				До щоденника буде записано приблизно <strong>{{ formatNumber(preview.calories) }} ккал</strong>
 				і {{ formatNumber(preview.proteins) }} г білка.
 			</p>
-			<Button type="submit" class="w-full" :disabled="pending || !selectedProduct">
+			<Button type="submit" class="min-h-11 w-full" :disabled="pending || !selectedProduct">
 				{{ pending ? 'Зберігаю...' : 'Записати їжу' }}
 			</Button>
 		</form>
@@ -440,7 +454,7 @@ function submitDrink() {
 				<span>Тип напою</span>
 				<select
 					v-model="drinkKind"
-					class="h-10 w-full rounded-md border border-input bg-background px-3"
+					class="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				>
 					<option value="water">Вода</option>
 					<option value="coffee">Кава</option>
@@ -452,7 +466,7 @@ function submitDrink() {
 				<span>Об’єм</span>
 				<select
 					v-model="volumePreset"
-					class="h-10 w-full rounded-md border border-input bg-background px-3"
+					class="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 					@change="applyVolumePreset"
 				>
 					<option value="300">Склянка — 300 мл</option>
@@ -469,7 +483,7 @@ function submitDrink() {
 			<p class="text-sm text-muted-foreground">
 				До цілі зараховується лише вода. Чай, кава та інші напої залишаться у щоденнику, але не збільшать лічильник води.
 			</p>
-			<Button type="submit" class="w-full" :disabled="pending">
+			<Button type="submit" class="min-h-11 w-full" :disabled="pending">
 				{{ pending ? 'Зберігаю...' : `Записати ${drinkLabel}` }}
 			</Button>
 		</form>
