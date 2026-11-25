@@ -4,6 +4,8 @@ import addProduct from '~/src/entities/product/api/addProduct'
 import {
 	IRRITANT_INGREDIENT_MAX_LENGTH,
 	IRRITANT_REASON_MAX_LENGTH,
+	PRODUCT_COMPOSITION_MAX_ITEMS,
+	parseProductComposition,
 	parseProductIrritant,
 } from '~/src/entities/product/irritant'
 import { parseDecimalInput } from '~/src/shared/numbers'
@@ -25,6 +27,7 @@ const vitaminC = shallowRef<number | null>(null)
 const irritantMarked = shallowRef(false)
 const irritantIngredient = shallowRef('')
 const irritantReason = shallowRef('')
+const composition = shallowRef('')
 const pending = shallowRef(false)
 const error = shallowRef('')
 const success = shallowRef('')
@@ -63,6 +66,14 @@ async function addFood() {
 				: 'Перевірте довжину полів помітки про подразник.'
 		return
 	}
+	const compositionResult = parseProductComposition(composition.value)
+	if (!compositionResult.valid) {
+		error.value =
+			compositionResult.reason === 'too-many'
+				? `Укажіть не більше ${PRODUCT_COMPOSITION_MAX_ITEMS} компонентів складу.`
+				: 'Перевірте довжину кожного компонента складу.'
+		return
+	}
 
 	pending.value = true
 	error.value = ''
@@ -71,6 +82,7 @@ async function addFood() {
 	const { error: saveError } = await addProduct(supabase, id, {
 		name: name.value,
 		quantity: Number(quantity.value),
+		composition: compositionResult.value,
 		irritant: irritantResult.value,
 		chars: {
 			calories: nutritionValues[0],
@@ -106,6 +118,7 @@ async function addFood() {
 	irritantMarked.value = false
 	irritantIngredient.value = ''
 	irritantReason.value = ''
+	composition.value = ''
 	for (const key of Object.keys(dashboardCache.value)) {
 		if (key.startsWith(`${id}:`)) delete dashboardCache.value[key]
 	}
@@ -186,6 +199,18 @@ async function addFood() {
 				<Input v-model="vitaminC" type="number" step="any" class="min-h-11" />
 			</label>
 		</fieldset>
+		<label class="space-y-1 text-sm font-medium">
+			<span class="block">Склад продукту</span>
+			<textarea
+				v-model="composition"
+				class="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+				placeholder="Наприклад: молоко, овес, сіль"
+				rows="3"
+			/>
+			<span class="block text-xs font-normal text-muted-foreground">
+				Необов’язково. Перерахуйте компоненти через кому.
+			</span>
+		</label>
 		<fieldset class="space-y-3 rounded-xl border border-border p-3">
 			<legend class="px-1 text-sm font-semibold">Особиста помітка</legend>
 			<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">

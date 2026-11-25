@@ -869,6 +869,7 @@ interface Product {
 	idempotencyKey?: string
 	irritant_ingredient?: string | null
 	irritant_reason?: string | null
+	composition?: string[]
 	chars: {
 		calories: number
 		proteins: number
@@ -1358,7 +1359,7 @@ function cacheDashboardSnapshot(id: string) {
 async function loadProducts(id: string): Promise<string | null> {
 	let { data, error: requestError } = await supabase
 		.from('products')
-		.select('id, name, quantity, chars, idempotency_key, irritant_ingredient, irritant_reason')
+		.select('id, name, quantity, chars, composition, idempotency_key, irritant_ingredient, irritant_reason')
 		.eq('user_id', id)
 		.order('name')
 	if (requestError) return 'Не вдалося завантажити список продуктів.'
@@ -1371,7 +1372,7 @@ async function loadProducts(id: string): Promise<string | null> {
 
 		const refreshed = await supabase
 			.from('products')
-			.select('id, name, quantity, chars, idempotency_key, irritant_ingredient, irritant_reason')
+			.select('id, name, quantity, chars, composition, idempotency_key, irritant_ingredient, irritant_reason')
 			.eq('user_id', id)
 			.order('name')
 		data = refreshed.data
@@ -1386,6 +1387,7 @@ async function loadProducts(id: string): Promise<string | null> {
 		idempotencyKey: product.idempotency_key ?? undefined,
 		irritant_ingredient: product.irritant_ingredient,
 		irritant_reason: product.irritant_reason,
+		composition: product.composition ?? [],
 		chars: product.chars as Product['chars'],
 	}))
 	return null
@@ -1445,7 +1447,7 @@ async function loadDayEntries(id: string): Promise<string | null> {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(id, name, quantity, chars, irritant_ingredient, irritant_reason)',
+				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(id, name, quantity, chars, composition, irritant_ingredient, irritant_reason)',
 			)
 			.eq('user_id', id)
 			.eq('date', today)

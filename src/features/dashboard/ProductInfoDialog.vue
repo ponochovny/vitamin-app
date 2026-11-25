@@ -15,6 +15,9 @@ import { parseDecimalInput } from '~/src/shared/numbers'
 import {
 	IRRITANT_INGREDIENT_MAX_LENGTH,
 	IRRITANT_REASON_MAX_LENGTH,
+	PRODUCT_COMPOSITION_MAX_ITEMS,
+	findMatchingIrritantComponents,
+	parseProductComposition,
 	parseProductIrritant,
 } from '~/src/entities/product/irritant'
 
@@ -39,6 +42,7 @@ const nameDraft = shallowRef('')
 const irritantMarked = shallowRef(false)
 const irritantIngredientDraft = shallowRef('')
 const irritantReasonDraft = shallowRef('')
+const compositionDraft = shallowRef('')
 const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string>>({
 	calories: '',
 	proteins: '',
@@ -58,6 +62,12 @@ const nutritionInputsRequired = computed(
 		props.product?.chars.nutritionKnown !== false ||
 		nutrientLabels.some(({ key }) => draft[key].trim() !== ''),
 )
+const matchingIrritantComponents = computed(() =>
+	findMatchingIrritantComponents(
+		props.product?.composition,
+		props.product?.irritant_ingredient,
+	),
+)
 
 function unitLabel(unit: FoodProductInfo['chars']['unit'] | undefined) {
 	return { g: 'г', ml: 'мл', piece: 'шт.' }[unit ?? 'g']
@@ -73,6 +83,7 @@ function startEditing() {
 	irritantMarked.value = Boolean(props.product.irritant_ingredient)
 	irritantIngredientDraft.value = props.product.irritant_ingredient ?? ''
 	irritantReasonDraft.value = props.product.irritant_reason ?? ''
+	compositionDraft.value = (props.product.composition ?? []).join(', ')
 	for (const { key } of nutrientLabels) {
 		draft[key] =
 			props.product.chars.nutritionKnown === false
@@ -141,6 +152,14 @@ async function saveNutrition() {
 				: 'Перевірте довжину полів помітки про подразник.'
 		return
 	}
+	const compositionResult = parseProductComposition(compositionDraft.value)
+	if (!compositionResult.valid) {
+		editError.value =
+			compositionResult.reason === 'too-many'
+				? `Укажіть не більше ${PRODUCT_COMPOSITION_MAX_ITEMS} компонентів складу.`
+				: 'Перевірте довжину кожного компонента складу.'
+		return
+	}
 
 	pending.value = true
 	editError.value = ''
@@ -153,12 +172,13 @@ async function saveNutrition() {
 		.update({
 			name,
 			chars,
+			composition: compositionResult.value,
 			irritant_ingredient: irritantResult.value?.ingredient ?? null,
 			irritant_reason: irritantResult.value?.reason ?? null,
 		})
 		.eq('id', product.id)
 		.eq('user_id', userId)
-		.select('id, name, quantity, chars, irritant_ingredient, irritant_reason')
+		.select('id, name, quantity, chars, composition, irritant_ingredient, irritant_reason')
 		.maybeSingle()
 	pending.value = false
 
@@ -172,6 +192,7 @@ async function saveNutrition() {
 		name: data.name,
 		quantity: Number(data.quantity),
 		chars: { ...chars, ...data.chars },
+		composition: data.composition ?? compositionResult.value,
 		irritant_ingredient: data.irritant_ingredient,
 		irritant_reason: data.irritant_reason,
 	})
@@ -209,11 +230,31 @@ async function saveNutrition() {
 							<dt class="font-semibold">Інгредієнт</dt>
 							<dd>{{ product.irritant_ingredient }}</dd>
 						</div>
+						<div v-if="matchingIrritantComponents.length">
+							<dt class="font-semibold">Знайдено у складі</dt>
+							<dd>{{ matchingIrritantComponents.join(', ') }}</dd>
+						</div>
 						<div>
 							<dt class="font-semibold">Чому позначено</dt>
 							<dd>{{ product.irritant_reason }}</dd>
 						</div>
 					</dl>
+				</section>
+
+				<section v-if="product.composition?.length" aria-labelledby="composition-heading">
+					<h3 id="composition-heading" class="text-sm font-semibold">Склад</h3>
+					<ul class="mt-2 flex flex-wrap gap-2">
+						<li
+							v-for="component in product.composition"
+							:key="component"
+							class="rounded-full border px-2.5 py-1 text-xs"
+							:class="matchingIrritantComponents.includes(component)
+								? 'border-amber-300 bg-amber-100 font-semibold text-amber-950'
+								: 'border-border bg-muted/50 text-muted-foreground'"
+						>
+							{{ component }}
+						</li>
+					</ul>
 				</section>
 
 				<section>
@@ -234,6 +275,18 @@ async function saveNutrition() {
 						<label class="block space-y-1 text-sm font-medium">
 							<span>Назва продукту</span>
 							<Input v-model="nameDraft" type="text" required />
+						</label>
+						<label class="block space-y-1 text-sm font-medium">
+							<span>Склад продукту</span>
+							<textarea
+								v-model="compositionDraft"
+								class="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+								placeholder="Наприклад: молоко, овес, сіль"
+								rows="3"
+							/>
+							<span class="block text-xs font-normal text-muted-foreground">
+								Необов’язково. Перерахуйте компоненти через кому.
+							</span>
 						</label>
 						<p class="text-sm text-muted-foreground">
 							Вкажіть значення для {{ formatNumber(product.quantity) }}

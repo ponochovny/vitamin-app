@@ -27,6 +27,7 @@ export interface FoodSuggestionProduct {
 	}
 	irritant_ingredient?: string | null
 	irritant_reason?: string | null
+	composition?: string[]
 }
 
 export interface FoodProductDraft {

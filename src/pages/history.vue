@@ -731,7 +731,7 @@ async function loadHistory(id: string, force = false) {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(id, name, quantity, chars, irritant_ingredient, irritant_reason)',
+				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(id, name, quantity, chars, composition, irritant_ingredient, irritant_reason)',
 			)
 			.eq('user_id', id)
 			.order('date', { ascending: false }),

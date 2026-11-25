@@ -25,6 +25,7 @@ export interface IProduct {
 	name: string
 	quantity: number
 	chars: IChars
+	composition?: string[]
 	irritant?: {
 		ingredient: string
 		reason: string

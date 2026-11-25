@@ -31,6 +31,7 @@ interface Product {
 	}
 	irritant_ingredient?: string | null
 	irritant_reason?: string | null
+	composition?: string[]
 }
 
 type ProductUnit = 'g' | 'ml' | 'piece'
