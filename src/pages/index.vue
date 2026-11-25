@@ -992,6 +992,8 @@ const dashboardCache = useState<Record<string, DashboardSnapshot>>(
 	() => ({}),
 )
 let dashboardLoadGeneration = 0
+let drinkTypesLoadGeneration = 0
+let wellbeingLoadGeneration = 0
 const historyCache = useState<Record<string, unknown>>(
 	'history-cache',
 	() => ({}),
@@ -1390,12 +1392,14 @@ async function loadProducts(id: string): Promise<string | null> {
 }
 
 async function loadDrinkTypes(id: string): Promise<string | null> {
+	const generation = ++drinkTypesLoadGeneration
 	const { data, error: requestError } = await supabase
 		.from('user_drink_types')
 		.select('id, kind, name, irritant_ingredient, irritant_reason')
 		.eq('user_id', id)
 		.order('name')
 	if (requestError) return 'Не вдалося завантажити види напоїв.'
+	if (userId.value !== id || generation !== drinkTypesLoadGeneration) return null
 	drinkTypes.value = (data ?? []) as DrinkTypeProfile[]
 	return null
 }
@@ -1461,7 +1465,10 @@ async function loadDayEntries(id: string): Promise<string | null> {
 	return null
 }
 
-async function loadWellbeing(id: string): Promise<string | null> {
+async function loadWellbeing(
+	id: string,
+	generation = ++wellbeingLoadGeneration,
+): Promise<string | null> {
 	const localDate = getLocalDate()
 	const dayStart = new Date(`${localDate}T00:00:00+02:00`)
 	const dayEnd = new Date(dayStart)
@@ -1475,6 +1482,7 @@ async function loadWellbeing(id: string): Promise<string | null> {
 		.gte('recorded_at', dayStart.toISOString())
 		.lt('recorded_at', dayEnd.toISOString())
 
+	if (userId.value !== id || generation !== wellbeingLoadGeneration) return null
 	if (requestError) return 'Не вдалося завантажити самопочуття.'
 	wellbeingEntries.value = (data ?? [])
 		.map((entry) => {
@@ -1831,6 +1839,7 @@ async function logDrink(
 			savedType = data as DrinkTypeProfile
 		}
 
+		drinkTypesLoadGeneration += 1
 		drinkTypes.value = [
 			...drinkTypes.value.filter((type) => type.id !== savedType.id),
 			savedType,
@@ -1908,6 +1917,7 @@ async function saveMood(
 	const { data: savedEntry, error: saveError } = await request
 	wellbeingPending.value = false
 
+	if (userId.value !== id) return
 	if (saveError || !savedEntry) {
 		error.value = 'Не вдалося зберегти самопочуття. Спробуйте ще раз.'
 		return
@@ -1927,12 +1937,15 @@ async function saveMood(
 	moodDialogOpen.value = false
 	selectedMoodPeriod.value = null
 	invalidateDashboardCache(id)
-	const wellbeingError = await loadWellbeing(id)
+	const generation = ++wellbeingLoadGeneration
+	const wellbeingError = await loadWellbeing(id, generation)
 	if (wellbeingError) {
 		error.value = wellbeingError
 		return
 	}
-	cacheDashboardSnapshot(id)
+	if (userId.value === id && generation === wellbeingLoadGeneration) {
+		cacheDashboardSnapshot(id)
+	}
 	notice.value = `${wellbeingPeriods.find((item) => item.key === period)?.label}: обрано «${option.label}».`
 }
 

@@ -141,7 +141,7 @@ useSeoMeta({
 			</div>
 			<NuxtLink
 				to="/signin"
-				class="preview-note__link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+				class="preview-note__link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
 			>
 				Почати з Vitamin
 			</NuxtLink>

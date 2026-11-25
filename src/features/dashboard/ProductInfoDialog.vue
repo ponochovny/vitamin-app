@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, shallowRef } from 'vue'
+import { computed, reactive, shallowRef } from 'vue'
 import {
 	Dialog,
 	DialogContent,
@@ -52,6 +52,12 @@ const nutrientLabels = [
 	{ key: 'fats', label: 'Жири', unit: 'г' },
 	{ key: 'carbs', label: 'Вуглеводи', unit: 'г' },
 ] as const
+
+const nutritionInputsRequired = computed(
+	() =>
+		props.product?.chars.nutritionKnown !== false ||
+		nutrientLabels.some(({ key }) => draft[key].trim() !== ''),
+)
 
 function unitLabel(unit: FoodProductInfo['chars']['unit'] | undefined) {
 	return { g: 'г', ml: 'мл', piece: 'шт.' }[unit ?? 'g']
@@ -108,7 +114,11 @@ async function saveNutrition() {
 		fats: parseDecimalInput(draft.fats),
 		carbs: parseDecimalInput(draft.carbs),
 	}
+	const hasNutritionDraft = nutrientLabels.some(
+		({ key }) => draft[key].trim() !== '',
+	)
 	if (
+		(product.chars.nutritionKnown !== false || hasNutritionDraft) &&
 		nutrientLabels.some(
 			({ key }) =>
 				!String(draft[key]).trim() ||
@@ -135,11 +145,9 @@ async function saveNutrition() {
 	pending.value = true
 	editError.value = ''
 	editSuccess.value = ''
-	const chars = {
-		...product.chars,
-		...values,
-		nutritionKnown: true,
-	}
+	const chars = hasNutritionDraft
+		? { ...product.chars, ...values, nutritionKnown: true }
+		: product.chars
 	const { data, error } = await supabase
 		.from('products')
 		.update({
@@ -243,7 +251,7 @@ async function saveNutrition() {
 								type="text"
 								inputmode="decimal"
 								placeholder="Наприклад, 6,7"
-								required
+								:required="nutritionInputsRequired"
 							/>
 						</label>
 						<fieldset class="space-y-3 rounded-xl border border-border p-3">

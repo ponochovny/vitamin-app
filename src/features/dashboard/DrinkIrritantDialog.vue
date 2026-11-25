@@ -67,7 +67,7 @@ function saveAnnotation() {
 
 <template>
 	<Dialog :open="open" @update:open="emit('update:open', $event)">
-		<DialogContent class="sm:max-w-md">
+		<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
 			<DialogHeader v-if="drink">
 				<DialogTitle>{{ drink.name }}</DialogTitle>
 				<DialogDescription>
