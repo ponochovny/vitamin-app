@@ -12,6 +12,15 @@ export interface FoodNutrition {
 	carbs: number
 }
 
+export function getApproximatePortionQuantities(
+	referenceQuantity: number,
+	unit: 'g' | 'ml' | 'piece',
+): number[] {
+	if (unit === 'piece') return [1, 2]
+	if (!Number.isFinite(referenceQuantity) || referenceQuantity <= 0) return []
+	return [0.5, 1, 1.5].map((factor) => referenceQuantity * factor)
+}
+
 export type OptionalNutritionResult =
 	| { valid: true; nutrition: FoodNutrition | null }
 	| { valid: false; reason: 'partial' | 'invalid' }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { filterProducts, getRecentFoods, parseOptionalNutrition } from './diary'
+import {
+	filterProducts,
+	getApproximatePortionQuantities,
+	getRecentFoods,
+	parseOptionalNutrition,
+} from './diary'
 
 describe('diary helpers', () => {
 	it('filters products by a trimmed, case-insensitive Ukrainian query', () => {
@@ -42,6 +47,13 @@ describe('diary helpers', () => {
 			{ productId: 'plum', quantity: 60 },
 			{ productId: 'orange', quantity: 40 },
 		])
+	})
+
+	it('offers approximate portions relative to the reference quantity or piece count', () => {
+		expect(getApproximatePortionQuantities(100, 'g')).toEqual([50, 100, 150])
+		expect(getApproximatePortionQuantities(250, 'ml')).toEqual([125, 250, 375])
+		expect(getApproximatePortionQuantities(100, 'piece')).toEqual([1, 2])
+		expect(getApproximatePortionQuantities(0, 'g')).toEqual([])
 	})
 
 	it('accepts nutrition only when all values are provided or all are omitted', () => {

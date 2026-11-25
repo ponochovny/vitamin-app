@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue'
-import { filterProducts, parseOptionalNutrition } from './diary'
+import {
+	filterProducts,
+	getApproximatePortionQuantities,
+	parseOptionalNutrition,
+} from './diary'
 
 interface Product {
 	id: string
@@ -60,6 +64,15 @@ const volumeMl = shallowRef<number | ''>(300)
 const selectedProduct = computed(() =>
 	props.products.find((product) => product.id === productId.value)
 )
+const selectedProductPortions = computed(() => {
+	const product = selectedProduct.value
+	return product
+		? getApproximatePortionQuantities(
+			product.quantity,
+			product.chars.unit ?? 'g',
+		)
+		: []
+})
 const matchingProducts = computed(() => {
 	return filterProducts(props.products, productSearch.value)
 })
@@ -74,6 +87,12 @@ const newProductReferenceQuantity = computed(() =>
 )
 const newProductUnitLabel = computed(() =>
 	({ g: 'г', ml: 'мл', piece: 'шт.' })[newProductUnit.value]
+)
+const newProductPortions = computed(() =>
+	getApproximatePortionQuantities(
+		newProductReferenceQuantity.value,
+		newProductUnit.value,
+	)
 )
 const preview = computed(() => {
 	if (!selectedProduct.value || selectedProduct.value.chars.nutritionKnown === false || !Number(quantity.value)) return null
@@ -260,6 +279,29 @@ function submitDrink() {
 						<Input v-model="newProductQuantity" type="number" min="0.1" step="any" required />
 					</label>
 				</div>
+				<div class="space-y-2">
+					<p class="text-sm font-medium">Швидкий вибір порції · приблизно</p>
+					<div class="flex flex-wrap gap-2" role="group" aria-label="Приблизний розмір порції">
+						<button
+							v-for="portion in newProductPortions"
+							:key="portion"
+							type="button"
+							class="rounded-full border border-border px-3 py-2 text-sm hover:border-primary"
+							:aria-pressed="Number(newProductQuantity) === portion"
+							@click="newProductQuantity = portion"
+						>
+							{{ formatNumber(portion) }} {{ newProductUnitLabel }}
+						</button>
+					</div>
+					<p class="text-xs text-muted-foreground">
+						{{
+							newProductUnit === 'piece'
+								? 'Оберіть 1 або 2 штуки.'
+								: `Варіанти розраховано від довідкових 100 ${newProductUnitLabel}.`
+						}}
+						Кількість можна змінити вручну.
+					</p>
+				</div>
 				<details class="rounded-lg border border-border px-3 py-2.5">
 					<summary class="cursor-pointer text-sm font-semibold">
 						Додати харчову цінність, якщо вона відома
@@ -358,6 +400,32 @@ function submitDrink() {
 				<span>Кількість, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
 				<Input v-model="quantity" type="number" min="0.1" step="any" required />
 			</label>
+			<div v-if="selectedProductPortions.length" class="space-y-2">
+				<p class="text-sm font-medium">Швидкий вибір порції · приблизно</p>
+				<div class="flex flex-wrap gap-2" role="group" aria-label="Приблизний розмір порції">
+					<button
+						v-for="portion in selectedProductPortions"
+						:key="portion"
+						type="button"
+						class="rounded-full border border-border px-3 py-2 text-sm hover:border-primary"
+						:aria-pressed="Number(quantity) === portion"
+						@click="quantity = portion"
+					>
+						{{ formatNumber(portion) }} {{ selectedProduct ? unitLabel(selectedProduct) : '' }}
+					</button>
+				</div>
+				<p
+					v-if="selectedProduct && selectedProduct.chars.unit !== 'piece'"
+					class="text-xs text-muted-foreground"
+				>
+					Варіанти розраховано від довідкової кількості
+					{{ formatNumber(selectedProduct.quantity) }} {{ unitLabel(selectedProduct) }}.
+					Кількість можна змінити вручну.
+				</p>
+				<p v-else class="text-xs text-muted-foreground">
+					Оберіть приблизну кількість або введіть її вручну.
+				</p>
+			</div>
 			<p v-if="preview" class="text-sm">
 				До щоденника буде записано приблизно <strong>{{ formatNumber(preview.calories) }} ккал</strong>
 				і {{ formatNumber(preview.proteins) }} г білка.
