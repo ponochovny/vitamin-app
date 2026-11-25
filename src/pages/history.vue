@@ -68,6 +68,54 @@
 				</form>
 			</DialogContent>
 		</Dialog>
+		<Dialog v-model:open="reactionDialogOpen">
+			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Нове спостереження</DialogTitle>
+					<DialogDescription>
+						Зафіксуйте час і необов’язкову коротку помітку. Це особисте
+						спостереження, а не доказ причини реакції.
+					</DialogDescription>
+				</DialogHeader>
+				<form v-if="selectedReactionEntry" class="space-y-4" @submit.prevent="saveReaction">
+					<p class="font-semibold">{{ selectedReactionEntry.title }}</p>
+					<label class="block space-y-1.5 text-sm font-medium">
+						<span>Коли спостерігали реакцію</span>
+						<Input
+							v-model="reactionObservedAtDraft"
+							type="datetime-local"
+							required
+						/>
+					</label>
+					<label class="block space-y-1.5 text-sm font-medium">
+						<span>Коротка помітка, необов’язково</span>
+						<textarea
+							v-model="reactionNoteDraft"
+							:maxlength="REACTION_NOTE_MAX_LENGTH"
+							rows="3"
+							class="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+						/>
+					</label>
+					<p v-if="reactionError" role="alert" class="text-sm text-destructive">
+						{{ reactionError }}
+					</p>
+					<div class="flex flex-wrap gap-2">
+						<Button type="submit" :disabled="entryPending">
+							{{ entryPending ? 'Зберігаю…' : 'Зберегти спостереження' }}
+						</Button>
+						<Button
+							v-if="selectedReactionEntry.reaction"
+							type="button"
+							variant="outline"
+							:disabled="entryPending"
+							@click="deleteReaction"
+						>
+							Видалити
+						</Button>
+					</div>
+				</form>
+			</DialogContent>
+		</Dialog>
 		<ProductInfoDialog
 			:open="productInfoOpen"
 			:product="selectedFoodEntry?.product ?? null"
@@ -292,6 +340,13 @@
 										class="mt-0.5 block truncate text-sm text-muted-foreground"
 										>{{ entry.detail }} · {{ entry.amount }}</span
 									>
+									<span
+										v-if="entry.reaction"
+										class="mt-1 inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-950"
+									>
+										Спостереження: {{ formatLocalTime(entry.reaction.observed_at) }}
+										<span v-if="entry.reaction.note"> · {{ entry.reaction.note }}</span>
+									</span>
 								</span>
 							</button>
 							<div v-else class="flex min-w-0 flex-1 items-center gap-3">
@@ -313,6 +368,13 @@
 									<p class="mt-0.5 truncate text-sm text-muted-foreground">
 										{{ entry.detail }} · {{ entry.amount }}
 									</p>
+									<p
+										v-if="entry.reaction"
+										class="mt-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-950"
+									>
+										Спостереження: {{ formatLocalTime(entry.reaction.observed_at) }}
+										<span v-if="entry.reaction.note"> · {{ entry.reaction.note }}</span>
+									</p>
 								</div>
 							</div>
 							<div class="shrink-0 text-right">
@@ -322,6 +384,14 @@
 									}}</time>
 								</p>
 								<div class="mt-1 flex justify-end gap-3">
+									<button
+										type="button"
+										class="min-h-11 rounded-sm px-2 text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+										:disabled="entryPending"
+										@click="openReaction(entry)"
+									>
+										{{ entry.reaction ? 'Змінити реакцію' : 'Реакція' }}
+									</button>
 									<button
 										v-if="
 											entry.kind === 'drink'
@@ -436,6 +506,11 @@ import type {
 	DrinkTypeProfile,
 } from '~/src/features/dashboard/drinkType'
 import type { ProductIrritant } from '~/src/entities/product/irritant'
+import {
+	REACTION_NOTE_MAX_LENGTH,
+	parseReactionDraft,
+	toLocalDatetimeInput,
+} from '~/src/features/dashboard/reaction'
 
 type PeriodKey = 'morning' | 'day' | 'evening'
 
@@ -470,6 +545,15 @@ interface HistoryEntry {
 	drinkName?: string | null
 	drinkType?: DrinkTypeProfile | null
 	logged?: LoggedFoodInfo | null
+	reaction?: ReactionObservation | null
+}
+
+interface ReactionObservation {
+	id: string
+	food_log_id: string | null
+	drink_id: string | null
+	observed_at: string
+	note: string | null
 }
 
 interface MoodValue {
@@ -500,6 +584,7 @@ interface HistorySnapshot {
 	foodLogs: FoodLog[]
 	drinkLogs: DrinkLog[]
 	moodEntries: MoodEntry[]
+	reactions: ReactionObservation[]
 }
 
 interface HistoryDay {
@@ -521,18 +606,24 @@ const refreshing = shallowRef(false)
 const error = shallowRef('')
 const entryPending = shallowRef(false)
 const editDialogOpen = shallowRef(false)
+const reactionDialogOpen = shallowRef(false)
 const productInfoOpen = shallowRef(false)
 const drinkInfoOpen = shallowRef(false)
 const editingEntry = shallowRef<HistoryEntry | null>(null)
 const selectedFoodEntry = shallowRef<HistoryEntry | null>(null)
 const selectedDrinkEntry = shallowRef<HistoryEntry | null>(null)
 const selectedDrinkTypeInfo = shallowRef<(DrinkTypeDetails & { id?: string }) | null>(null)
+const selectedReactionEntry = shallowRef<HistoryEntry | null>(null)
+const reactionObservedAtDraft = shallowRef(toLocalDatetimeInput())
+const reactionNoteDraft = shallowRef('')
+const reactionError = shallowRef('')
 const editQuantity = shallowRef<number | ''>('')
 const editVolume = shallowRef<number | ''>('')
 const editError = shallowRef('')
 const foodLogs = shallowRef<FoodLog[]>([])
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const moodEntries = shallowRef<MoodEntry[]>([])
+const reactions = shallowRef<ReactionObservation[]>([])
 const expandedDates = shallowRef<Set<string>>(new Set())
 let historyLoadGeneration = 0
 const historyCache = useState<Record<string, HistorySnapshot>>(
@@ -594,6 +685,9 @@ const days = computed<HistoryDay[]>(() => {
 		const date = String(log.date)
 		const entries = grouped.get(date) ?? []
 		const quantity = formatNumber(Number(log.quantity))
+		const reaction = reactions.value.find(
+			(item) => item.food_log_id === log.id,
+		) ?? null
 		const unit =
 			log.products?.chars?.unit === 'ml'
 				? 'мл'
@@ -616,6 +710,7 @@ const days = computed<HistoryDay[]>(() => {
 			unit,
 			quantity: Number(log.quantity),
 			product: log.products,
+			reaction,
 			logged: {
 				quantity: Number(log.quantity),
 				nutrition: {
@@ -633,6 +728,9 @@ const days = computed<HistoryDay[]>(() => {
 		const date = drink.entry_date ?? localDateFromTimestamp(drink.recorded_at)
 		if (!date) continue
 		const entries = grouped.get(date) ?? []
+		const reaction = reactions.value.find(
+			(item) => item.drink_id === drink.id,
+		) ?? null
 		entries.push({
 			id: drink.id,
 			kind: 'drink',
@@ -646,6 +744,7 @@ const days = computed<HistoryDay[]>(() => {
 			drinkTypeId: drink.drink_type_id,
 			drinkName: drink.drink_name,
 			drinkType: drink.drink_type,
+			reaction,
 		})
 		grouped.set(date, entries)
 	}
@@ -694,7 +793,9 @@ watch(
 		expandedDates.value = new Set()
 		clearHistoryRecords()
 		editDialogOpen.value = false
+		reactionDialogOpen.value = false
 		editingEntry.value = null
+		selectedReactionEntry.value = null
 		editQuantity.value = ''
 		editVolume.value = ''
 		editError.value = ''
@@ -727,7 +828,7 @@ async function loadHistory(id: string, force = false) {
 	else loading.value = true
 	error.value = ''
 
-	const [foods, drinks, moods] = await Promise.all([
+	const [foods, drinks, moods, reactionRows] = await Promise.all([
 		supabase
 			.from('logs')
 			.select(
@@ -746,11 +847,16 @@ async function loadHistory(id: string, force = false) {
 			.eq('user_id', id)
 			.eq('kind', 'mood')
 			.order('recorded_at', { ascending: false }),
+		supabase
+			.from('reaction_observations')
+			.select('id, food_log_id, drink_id, observed_at, note')
+			.eq('user_id', id)
+			.order('observed_at', { ascending: false }),
 	])
 
 	if (userId.value !== id || historyLoadGeneration !== loadGeneration) return
 
-	if (foods.error || drinks.error || moods.error) {
+	if (foods.error || drinks.error || moods.error || reactionRows.error) {
 		error.value = 'Не вдалося завантажити журнал. Спробуйте оновити сторінку.'
 		clearHistoryRecords()
 		loading.value = false
@@ -764,6 +870,7 @@ async function loadHistory(id: string, force = false) {
 		entry_date: drink.entry_date ?? null,
 	}))
 	moodEntries.value = moods.data ?? []
+	reactions.value = (reactionRows.data ?? []) as ReactionObservation[]
 	historyCache.value = {
 		...historyCache.value,
 		[id]: {
@@ -771,6 +878,7 @@ async function loadHistory(id: string, force = false) {
 			foodLogs: [...foodLogs.value],
 			drinkLogs: [...drinkLogs.value],
 			moodEntries: [...moodEntries.value],
+			reactions: [...reactions.value],
 		},
 	}
 	loading.value = false
@@ -781,12 +889,14 @@ function clearHistoryRecords() {
 	foodLogs.value = []
 	drinkLogs.value = []
 	moodEntries.value = []
+	reactions.value = []
 }
 
 function restoreHistorySnapshot(snapshot: HistorySnapshot) {
 	foodLogs.value = snapshot.foodLogs
 	drinkLogs.value = snapshot.drinkLogs
 	moodEntries.value = snapshot.moodEntries
+	reactions.value = snapshot.reactions
 }
 
 function refreshHistory() {
@@ -800,6 +910,106 @@ function toggleDay(date: string) {
 	if (next.has(date)) next.delete(date)
 	else next.add(date)
 	expandedDates.value = next
+}
+
+function openReaction(entry: HistoryEntry) {
+	selectedReactionEntry.value = entry
+	reactionObservedAtDraft.value = entry.reaction
+		? toLocalDatetimeInput(new Date(entry.reaction.observed_at))
+		: toLocalDatetimeInput()
+	reactionNoteDraft.value = entry.reaction?.note ?? ''
+	reactionError.value = ''
+	reactionDialogOpen.value = true
+}
+
+async function saveReaction() {
+	const id = userId.value
+	const entry = selectedReactionEntry.value
+	if (!id || !entry || entryPending.value) return
+
+	const result = parseReactionDraft({
+		observedAt: reactionObservedAtDraft.value,
+		note: reactionNoteDraft.value,
+	})
+	if (!result.valid) {
+		reactionError.value =
+			result.reason === 'time-required'
+				? 'Вкажіть час спостереження.'
+				: result.reason === 'time-invalid'
+					? 'Перевірте формат часу.'
+					: 'Помітка занадто довга.'
+		return
+	}
+
+	entryPending.value = true
+	reactionError.value = ''
+	const payload = entry.kind === 'food'
+		? {
+				user_id: id,
+				food_log_id: entry.id,
+				drink_id: null,
+				observed_at: result.observedAt,
+				note: result.note,
+			}
+		: {
+				user_id: id,
+				food_log_id: null,
+				drink_id: entry.id,
+				observed_at: result.observedAt,
+				note: result.note,
+			}
+
+	const request = entry.reaction
+		? supabase
+				.from('reaction_observations')
+				.update(payload)
+				.eq('id', entry.reaction.id)
+				.eq('user_id', id)
+				.select('id, food_log_id, drink_id, observed_at, note')
+				.maybeSingle()
+		: supabase
+				.from('reaction_observations')
+				.insert(payload)
+				.select('id, food_log_id, drink_id, observed_at, note')
+				.single()
+	const { error: saveError } = await request
+	entryPending.value = false
+
+	if (saveError) {
+		reactionError.value =
+			'Не вдалося зберегти спостереження. Перевірте з’єднання та спробуйте ще раз.'
+		return
+	}
+
+	reactionDialogOpen.value = false
+	selectedReactionEntry.value = null
+	await loadHistory(id, true)
+	toast.success('Спостереження про реакцію збережено.')
+}
+
+async function deleteReaction() {
+	const id = userId.value
+	const entry = selectedReactionEntry.value
+	if (!id || !entry?.reaction || entryPending.value) return
+
+	entryPending.value = true
+	reactionError.value = ''
+	const { error: deleteError } = await supabase
+		.from('reaction_observations')
+		.delete()
+		.eq('id', entry.reaction.id)
+		.eq('user_id', id)
+	entryPending.value = false
+
+	if (deleteError) {
+		reactionError.value = 'Не вдалося видалити спостереження.'
+		return
+	}
+
+	reactionDialogOpen.value = false
+	selectedReactionEntry.value = null
+	await loadHistory(id, true)
+	toast.success('Спостереження видалено.')
 }
 
 function openEdit(entry: HistoryEntry) {
