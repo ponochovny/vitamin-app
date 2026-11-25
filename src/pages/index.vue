@@ -238,12 +238,27 @@
 							"
 							aria-valuemin="0"
 							aria-valuemax="100"
+							:aria-describedby="
+								previewNutrition ? 'food-preview-summary' : undefined
+							"
 							:aria-label="
 								nutrition.nutritionUnknown
 									? `Часткова сума калорій: ${formatNumber(nutrition.calories)} ккал. Є записи без харчової цінності.`
 									: `Калорії: ${formatNumber(nutrition.calories)} з ${formatNumber(targets.calories)} ккал`
 							"
 						>
+							<span
+								v-if="previewNutrition"
+								class="goal-ring__preview"
+								:style="
+									ringPreviewStyle(
+										nutrition.calories,
+										targets.calories,
+										previewNutrition.calories,
+									)
+								"
+								aria-hidden="true"
+							/>
 							<span class="goal-ring__content">
 								<strong>{{ formatNumber(nutrition.calories) }}</strong>
 								<small>ккал</small>
@@ -259,11 +274,20 @@
 								}}
 							</p>
 							<p class="mt-1 text-xs text-white/65">
-								{{
-									nutrition.nutritionUnknown
-										? 'Є записи без даних'
-										: `${Math.round(progress(nutrition.calories, targets.calories))}% цілі`
-								}}
+								<span v-if="nutrition.nutritionUnknown">
+									Є записи без даних
+								</span>
+								<template v-if="!nutrition.nutritionUnknown && previewNutrition">
+									<span class="block">
+										Зараз {{ Math.round(progress(nutrition.calories, targets.calories)) }}%
+									</span>
+									<span class="block font-bold text-white">
+										Буде {{ Math.round(progress(previewNutrition.calories, targets.calories)) }}%
+									</span>
+								</template>
+								<template v-else-if="!nutrition.nutritionUnknown">
+									{{ Math.round(progress(nutrition.calories, targets.calories)) }}% цілі
+								</template>
 							</p>
 						</div>
 					</article>
@@ -301,12 +325,27 @@
 								"
 								aria-valuemin="0"
 								aria-valuemax="100"
+								:aria-describedby="
+									previewNutrition ? 'food-preview-summary' : undefined
+								"
 								:aria-label="
 									nutrition.nutritionUnknown
 										? `${macro.label}: часткова сума ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів; є записи без харчової цінності`
 										: `${macro.label}: ${formatNumber(nutrition[macro.key])} із ${formatNumber(targets[macro.key])} грамів`
 								"
 							>
+								<span
+									v-if="previewNutrition"
+									class="goal-ring__preview"
+									:style="
+										ringPreviewStyle(
+											nutrition[macro.key],
+											targets[macro.key],
+											previewNutrition[macro.key],
+										)
+									"
+									aria-hidden="true"
+								/>
 								<span class="goal-ring__content">
 									<strong>{{ formatNumber(nutrition[macro.key]) }}</strong>
 									<small>г</small>
@@ -316,16 +355,57 @@
 								з {{ formatNumber(targets[macro.key]) }} г
 							</p>
 							<p class="mt-1 text-[11px] text-white/65">
-								{{
-									nutrition.nutritionUnknown
-										? 'Частково'
-										: `${Math.round(
-												progress(nutrition[macro.key], targets[macro.key]),
-											)}% цілі`
-								}}
+								<template v-if="nutrition.nutritionUnknown">
+									Частково
+								</template>
+								<template v-else-if="previewNutrition">
+									<span class="block">
+										Зараз
+										{{ Math.round(progress(nutrition[macro.key], targets[macro.key])) }}%
+									</span>
+									<span class="block font-bold text-white">
+										Буде
+										{{ Math.round(progress(previewNutrition[macro.key], targets[macro.key])) }}%
+									</span>
+								</template>
+								<template v-else>
+									{{
+										Math.round(
+											progress(nutrition[macro.key], targets[macro.key]),
+										)
+									}}% цілі
+								</template>
 							</p>
 						</article>
 					</div>
+				</div>
+
+				<div
+					v-if="selectedFoodSuggestion && previewNutrition"
+					class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/10 px-3 py-2"
+				>
+					<p
+						id="food-preview-summary"
+						role="status"
+						class="text-sm text-white/90"
+					>
+						Після
+						{{ formatNumber(selectedFoodSuggestion.product.quantity) }}
+						{{ unitLabel(selectedFoodSuggestion.product.chars.unit) }}:
+						{{ selectedFoodSuggestion.product.name }} —
+						{{ formatNumber(previewNutrition.calories) }} ккал,
+						Б {{ formatNumber(previewNutrition.proteins) }} г,
+						Ж {{ formatNumber(previewNutrition.fats) }} г,
+						В {{ formatNumber(previewNutrition.carbs) }} г.
+						Перегляд не збережено.
+					</p>
+					<button
+						type="button"
+						class="min-h-11 rounded-full px-3 text-sm font-semibold text-white underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+						@click="selectedFoodSuggestionId = null"
+					>
+						Прибрати превʼю
+					</button>
 				</div>
 
 				<div class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -472,7 +552,7 @@
 						Що підходить до цілей, що залишилися
 					</h2>
 					<p class="mt-1 text-sm text-muted-foreground">
-						Зліва — найбільш відповідні продукти з твого списку. КБЖУ наведено за вказану кількість.
+						Зліва — найбільш відповідні продукти. Натисни на назву, щоб побачити приріст за вказану кількість.
 					</p>
 				</div>
 				<p
@@ -493,13 +573,35 @@
 						:key="suggestion.product.id"
 						class="w-64 shrink-0 snap-start sm:w-72"
 					>
-						<article class="h-full rounded-2xl border border-border bg-card p-4">
+						<article
+							class="h-full rounded-2xl border bg-card p-4"
+							:class="
+								selectedFoodSuggestionId === suggestion.product.id
+									? 'border-primary ring-2 ring-primary/20'
+									: 'border-border'
+							"
+						>
 							<h3 class="truncate font-bold">
-								{{ suggestion.product.name }}
+								<button
+									type="button"
+									class="rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+									:aria-pressed="
+										selectedFoodSuggestionId === suggestion.product.id
+									"
+									@click="toggleFoodSuggestion(suggestion.product.id)"
+								>
+									{{ suggestion.product.name }}
+								</button>
 							</h3>
 							<p class="mt-1 text-xs text-muted-foreground">
 								За {{ formatNumber(suggestion.product.quantity) }}
 								{{ unitLabel(suggestion.product.chars.unit) }}
+							</p>
+							<p
+								v-if="selectedFoodSuggestionId === suggestion.product.id"
+								class="mt-1 text-xs font-semibold text-primary"
+							>
+								Показано на шкалах
 							</p>
 							<dl class="mt-3 grid grid-cols-2 gap-2">
 								<div class="rounded-xl bg-muted p-2.5">
@@ -805,6 +907,7 @@ const notice = shallowRef('')
 const products = shallowRef<Product[]>([])
 const recentFoods = shallowRef<RecentFood[]>([])
 const foodLogs = shallowRef<FoodLog[]>([])
+const selectedFoodSuggestionId = shallowRef<string | null>(null)
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
 const wellbeingPending = shallowRef(false)
@@ -827,6 +930,10 @@ watch(
 	},
 	{ flush: 'sync' },
 )
+
+watch(foodLogs, () => {
+	selectedFoodSuggestionId.value = null
+})
 
 watch(error, (message) => {
 	if (message) {
@@ -882,6 +989,23 @@ const hasRemainingMacroGoals = computed(() =>
 const foodSuggestions = computed(() =>
 	getFoodSuggestions(products.value, nutrition.value, targets.value)
 )
+const selectedFoodSuggestion = computed(() => {
+	if (nutrition.value.nutritionUnknown) return undefined
+	return foodSuggestions.value.find(
+		(suggestion) =>
+			suggestion.product.id === selectedFoodSuggestionId.value,
+	)
+})
+const previewNutrition = computed(() => {
+	const product = selectedFoodSuggestion.value?.product
+	if (!product) return null
+	return {
+		calories: nutrition.value.calories + product.chars.calories,
+		proteins: nutrition.value.proteins + product.chars.proteins,
+		fats: nutrition.value.fats + product.chars.fats,
+		carbs: nutrition.value.carbs + product.chars.carbs,
+	}
+})
 const pureWater = computed(() =>
 	drinkLogs.value
 		.filter((drink) => drink.kind === 'water')
@@ -965,6 +1089,11 @@ function openQuickLog() {
 	if (!userId.value) return
 	targetsOpen.value = false
 	quickLogOpen.value = true
+}
+
+function toggleFoodSuggestion(productId: string) {
+	selectedFoodSuggestionId.value =
+		selectedFoodSuggestionId.value === productId ? null : productId
 }
 
 function openTargets() {
@@ -1614,6 +1743,18 @@ function ringStyle(
 	}
 }
 
+function ringPreviewStyle(
+	current: number,
+	target: number,
+	projected: number,
+) {
+	const currentPercent = progress(current, target)
+	const projectedPercent = progress(projected, target)
+	return {
+		background: `conic-gradient(transparent ${currentPercent}%, rgb(255 255 255 / 68%) ${currentPercent}% ${projectedPercent}%, transparent ${projectedPercent}% 100%)`,
+	}
+}
+
 function waterSurfacePath(percent: number) {
 	const level = 88 - Math.min(100, Math.max(0, percent)) * 0.78
 	return `M0 ${level} C12 ${level - 4} 22 ${level + 4} 36 ${level} S58 ${level - 4} 80 ${level} V96 H0Z`
@@ -1802,6 +1943,37 @@ const seedProducts = [
 	border-radius: 9999px;
 	background: #246b4f;
 	content: '';
+}
+
+.goal-ring__preview {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	-webkit-mask: radial-gradient(
+		farthest-side,
+		transparent calc(100% - 10px),
+		#000 calc(100% - 10px)
+	);
+	mask: radial-gradient(
+		farthest-side,
+		transparent calc(100% - 10px),
+		#000 calc(100% - 10px)
+	);
+}
+
+.goal-ring--small .goal-ring__preview {
+	-webkit-mask: radial-gradient(
+		farthest-side,
+		transparent calc(100% - 8px),
+		#000 calc(100% - 8px)
+	);
+	mask: radial-gradient(
+		farthest-side,
+		transparent calc(100% - 8px),
+		#000 calc(100% - 8px)
+	);
 }
 
 .goal-ring__content {
