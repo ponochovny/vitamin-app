@@ -19,9 +19,11 @@ const props = withDefaults(defineProps<{
 	drink: DrinkTypeDetails | null
 	editable?: boolean
 	pending?: boolean
+	requestError?: string
 }>(), {
 	editable: false,
 	pending: false,
+	requestError: '',
 })
 
 const emit = defineEmits<{
@@ -110,6 +112,9 @@ function saveAnnotation() {
 				</fieldset>
 				<p v-if="formError" role="alert" class="text-sm text-destructive">
 					{{ formError }}
+				</p>
+				<p v-if="requestError" role="alert" class="text-sm text-destructive">
+					{{ requestError }}
 				</p>
 				<Button type="submit" class="min-h-11 w-full" :disabled="pending">
 					{{ pending ? 'Зберігаю…' : 'Зберегти помітку' }}

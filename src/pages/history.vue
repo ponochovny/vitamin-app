@@ -80,6 +80,7 @@
 			:drink="selectedDrinkTypeInfo"
 			:editable="true"
 			:pending="entryPending"
+			:request-error="error"
 			@update:open="drinkInfoOpen = $event"
 			@save="saveDrinkIrritant"
 		/>
@@ -525,7 +526,7 @@ const drinkInfoOpen = shallowRef(false)
 const editingEntry = shallowRef<HistoryEntry | null>(null)
 const selectedFoodEntry = shallowRef<HistoryEntry | null>(null)
 const selectedDrinkEntry = shallowRef<HistoryEntry | null>(null)
-const selectedDrinkTypeInfo = shallowRef<DrinkTypeDetails | null>(null)
+const selectedDrinkTypeInfo = shallowRef<(DrinkTypeDetails & { id?: string }) | null>(null)
 const editQuantity = shallowRef<number | ''>('')
 const editVolume = shallowRef<number | ''>('')
 const editError = shallowRef('')
@@ -843,7 +844,11 @@ async function saveDrinkIrritant(annotation: ProductIrritant | null) {
 		return
 	}
 
-	if (!annotation && !entry.drinkTypeId) {
+	if (
+		!annotation
+		&& !entry.drinkTypeId
+		&& !selectedDrinkTypeInfo.value?.id
+	) {
 		drinkInfoOpen.value = false
 		selectedDrinkEntry.value = null
 		selectedDrinkTypeInfo.value = null
@@ -853,14 +858,16 @@ async function saveDrinkIrritant(annotation: ProductIrritant | null) {
 	entryPending.value = true
 	error.value = ''
 	let savedType: DrinkTypeProfile
-	if (entry.drinkTypeId) {
+	const drinkName = entry.drinkName?.trim() || null
+	const committedTypeId = entry.drinkTypeId ?? selectedDrinkTypeInfo.value?.id
+	if (committedTypeId) {
 		const { data, error: updateError } = await supabase
 			.from('user_drink_types')
 			.update({
 				irritant_ingredient: annotation?.ingredient ?? null,
 				irritant_reason: annotation?.reason ?? null,
 			})
-			.eq('id', entry.drinkTypeId)
+			.eq('id', committedTypeId)
 			.eq('user_id', id)
 			.eq('kind', kind)
 			.select('id, kind, name, irritant_ingredient, irritant_reason')
@@ -872,7 +879,6 @@ async function saveDrinkIrritant(annotation: ProductIrritant | null) {
 		}
 		savedType = data as DrinkTypeProfile
 	} else {
-		const drinkName = entry.drinkName?.trim() || null
 		const normalizedName = normalizeDrinkTypeName(
 			drinkName ?? drinkKindLabel(kind),
 		)
@@ -929,6 +935,11 @@ async function saveDrinkIrritant(annotation: ProductIrritant | null) {
 			}
 			savedType = data as DrinkTypeProfile
 		}
+	}
+
+	if (!entry.drinkTypeId) {
+		selectedDrinkEntry.value = { ...entry, drinkType: savedType }
+		selectedDrinkTypeInfo.value = savedType
 
 		let unlinkedDrinks = supabase
 			.from('drinks')

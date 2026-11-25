@@ -833,6 +833,8 @@ import {
 	FOOD_MACRO_KEYS,
 	getFoodSuggestions,
 	getRecentFoods,
+	matchesFoodProductDraft,
+	type FoodProductDraft,
 } from '~/src/features/dashboard/diary'
 import type {
 	FoodProductInfo,
@@ -919,17 +921,8 @@ interface DiaryRecord {
 	logged: LoggedFoodInfo | null
 }
 
-interface NewFoodEntry {
-	name: string
-	unit: 'g' | 'ml' | 'piece'
-	referenceQuantity: number
+interface NewFoodEntry extends FoodProductDraft {
 	quantity: number
-	nutrition: {
-		calories: number
-		proteins: number
-		fats: number
-		carbs: number
-	} | null
 	idempotencyKey: string
 }
 
@@ -967,6 +960,7 @@ const quickLogFormVersion = shallowRef(0)
 const targetPending = shallowRef(false)
 const quickLogOpen = shallowRef(false)
 let quickLogFormSessionId = 0
+let pendingNewFoodSubmission: { userId: string; entry: NewFoodEntry } | null = null
 const targetsOpen = shallowRef(false)
 const moodDialogOpen = shallowRef(false)
 const productInfoOpen = shallowRef(false)
@@ -1572,7 +1566,18 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	savePending.value = true
 	error.value = ''
 	notice.value = ''
-	const productNutrition = entry.nutrition ?? {
+	const pendingEntry =
+		pendingNewFoodSubmission?.userId === id
+		&& pendingNewFoodSubmission.entry.idempotencyKey === entry.idempotencyKey
+			? pendingNewFoodSubmission.entry
+			: null
+	if (!pendingEntry) pendingNewFoodSubmission = null
+	const submission = pendingEntry ?? {
+		...entry,
+		nutrition: entry.nutrition ? { ...entry.nutrition } : null,
+	}
+
+	const productNutrition = submission.nutrition ?? {
 		calories: 0,
 		proteins: 0,
 		fats: 0,
@@ -1580,25 +1585,19 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	}
 	const chars: Product['chars'] = {
 		...productNutrition,
-		unit: entry.unit,
-		nutritionKnown: entry.nutrition !== null,
+		unit: submission.unit,
+		nutritionKnown: submission.nutrition !== null,
 	}
-	let { data: createdProduct, error: productError } = await supabase
-		.from('products')
-		.upsert(
-			{
-				user_id: id,
-				name: entry.name.trim(),
-				quantity: entry.referenceQuantity,
-				chars,
-				idempotency_key: entry.idempotencyKey,
-			},
-			{ onConflict: 'idempotency_key' },
-		)
-		.select('id, name, quantity, chars, idempotency_key')
-		.single()
-
-	if (productError || !createdProduct) {
+	type SavedProductRow = {
+		id: string
+		name: string
+		quantity: number
+		chars: unknown
+		idempotency_key: string | null
+	}
+	let createdProduct: SavedProductRow | null = null
+	let recoveredProduct = Boolean(pendingEntry)
+	if (pendingEntry) {
 		const recovered = await supabase
 			.from('products')
 			.select('id, name, quantity, chars, idempotency_key')
@@ -1608,10 +1607,43 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		if (recovered.error || !recovered.data) {
 			savePending.value = false
 			error.value =
-				'Не вдалося зберегти страву у списку. Перевірте з’єднання та спробуйте ще раз.'
+				'Не вдалося відновити збережену страву для повторної спроби. Перевірте з’єднання та спробуйте ще раз.'
 			return
 		}
 		createdProduct = recovered.data
+	} else {
+		const { data, error: productError } = await supabase
+			.from('products')
+			.upsert(
+				{
+					user_id: id,
+					name: submission.name.trim(),
+					quantity: submission.referenceQuantity,
+					chars,
+					idempotency_key: submission.idempotencyKey,
+				},
+				{ onConflict: 'idempotency_key', ignoreDuplicates: true },
+			)
+			.select('id, name, quantity, chars, idempotency_key')
+			.single()
+		createdProduct = data
+
+		if (productError || !createdProduct) {
+			const recovered = await supabase
+				.from('products')
+				.select('id, name, quantity, chars, idempotency_key')
+				.eq('user_id', id)
+				.eq('idempotency_key', submission.idempotencyKey)
+				.maybeSingle()
+			if (recovered.error || !recovered.data) {
+				savePending.value = false
+				error.value =
+					'Не вдалося зберегти страву у списку. Перевірте з’єднання та спробуйте ще раз.'
+				return
+			}
+			createdProduct = recovered.data
+			recoveredProduct = true
+		}
 	}
 
 	if (!createdProduct) {
@@ -1625,7 +1657,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		id: createdProduct.id,
 		name: createdProduct.name,
 		quantity: Number(createdProduct.quantity),
-		idempotencyKey: createdProduct.idempotency_key ?? entry.idempotencyKey,
+		idempotencyKey: createdProduct.idempotency_key ?? submission.idempotencyKey,
 		chars: createdProduct.chars as Product['chars'],
 	}
 	products.value = [
@@ -1634,21 +1666,44 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	].sort((a, b) => a.name.localeCompare(b.name, 'uk-UA'))
 	invalidateDashboardCache(id)
 
-	const values = entry.nutrition
-		? scaleNutrition(entry.nutrition, entry.quantity, entry.referenceQuantity)
+	if (recoveredProduct && !pendingEntry) {
+		pendingNewFoodSubmission = { userId: id, entry: submission }
+	}
+	if (
+		recoveredProduct
+		&& (
+			!matchesFoodProductDraft(product, entry)
+			|| (pendingEntry && !matchesFoodProductDraft(product, pendingEntry))
+		)
+	) {
+		savePending.value = false
+		error.value =
+			'Збережена страва відрізняється від поточних даних. Поверніться до списку та виберіть її, щоб підтвердити запис.'
+		return
+	}
+
+	if (!pendingEntry) {
+		pendingNewFoodSubmission = { userId: id, entry: submission }
+	}
+	const values = submission.nutrition
+		? scaleNutrition(
+				submission.nutrition,
+				submission.quantity,
+				submission.referenceQuantity,
+			)
 		: { calories: 0, proteins: 0, fats: 0, carbs: 0 }
 	const { error: logError } = await supabase.from('logs').upsert(
 		{
 			user_id: id,
 			product_id: product.id,
 			date: getLocalDate(),
-			quantity: entry.quantity,
+			quantity: submission.quantity,
 			calories: values.calories,
 			proteins: values.proteins,
 			fats: values.fats,
 			carbs: values.carbs,
 			vitamins: {},
-			idempotency_key: entry.idempotencyKey,
+			idempotency_key: submission.idempotencyKey,
 		},
 		{ onConflict: 'idempotency_key' },
 	)
@@ -1659,8 +1714,14 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		return
 	}
 
+	if (
+		pendingNewFoodSubmission?.userId === id
+		&& pendingNewFoodSubmission.entry.idempotencyKey === submission.idempotencyKey
+	) {
+		pendingNewFoodSubmission = null
+	}
 	invalidateHistoryCache(id)
-	notice.value = `${formatFoodQuantity(entry.quantity, entry.unit)} «${product.name}» записано до щоденника.`
+	notice.value = `${formatFoodQuantity(submission.quantity, submission.unit)} «${product.name}» записано до щоденника.`
 	if (
 		quickLogOpen.value
 		&& userId.value === id
@@ -1671,7 +1732,10 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	await refreshDay(id)
 }
 
-async function logDrink(entry: DrinkLogSubmission) {
+async function logDrink(
+	entry: DrinkLogSubmission,
+	onTypeSaved?: (id: string) => void,
+) {
 	const id = userId.value
 	if (!id || savePending.value) return
 
@@ -1771,6 +1835,7 @@ async function logDrink(entry: DrinkLogSubmission) {
 		)
 		drinkTypeId = savedType.id
 		drinkName = savedType.name
+		onTypeSaved?.(savedType.id)
 		invalidateDashboardCache(id)
 		invalidateHistoryCache(id)
 	}
@@ -1826,19 +1891,40 @@ async function saveMood(
 				.update(payload)
 				.eq('id', existing.id)
 				.eq('user_id', id)
-		: supabase.from('wellbeing_entries').insert(payload)
-	const { error: saveError } = await request
+				.select('id, value')
+				.single()
+		: supabase
+				.from('wellbeing_entries')
+				.insert(payload)
+				.select('id, value')
+				.single()
+	const { data: savedEntry, error: saveError } = await request
 	wellbeingPending.value = false
 
-	if (saveError) {
+	if (saveError || !savedEntry) {
 		error.value = 'Не вдалося зберегти самопочуття. Спробуйте ще раз.'
 		return
 	}
 
+	const savedMood = {
+		id: savedEntry.id,
+		value: savedEntry.value as WellbeingEntry['value'],
+	}
+	wellbeingEntries.value = [
+		...wellbeingEntries.value.filter(
+			(entry) => entry.value.period !== period,
+		),
+		savedMood,
+	]
 	invalidateHistoryCache(id)
 	moodDialogOpen.value = false
 	selectedMoodPeriod.value = null
-	await loadWellbeing(id)
+	invalidateDashboardCache(id)
+	const wellbeingError = await loadWellbeing(id)
+	if (wellbeingError) {
+		error.value = wellbeingError
+		return
+	}
 	cacheDashboardSnapshot(id)
 	notice.value = `${wellbeingPeriods.find((item) => item.key === period)?.label}: обрано «${option.label}».`
 }

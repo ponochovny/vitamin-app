@@ -4,6 +4,7 @@ import {
 	getApproximatePortionQuantities,
 	getFoodSuggestions,
 	getRecentFoods,
+	matchesFoodProductDraft,
 	parseOptionalNutrition,
 } from './diary'
 
@@ -57,6 +58,34 @@ describe('diary helpers', () => {
 		expect(getApproximatePortionQuantities(0, 'g')).toEqual([])
 	})
 
+	it('matches recovered products against their submitted draft', () => {
+		const draft = {
+			name: 'Рис',
+			unit: 'g' as const,
+			referenceQuantity: 100,
+			nutrition: { calories: 130, proteins: 2.7, fats: 0.3, carbs: 28 },
+		}
+		const product = {
+			name: 'Рис',
+			quantity: 100,
+			chars: { ...draft.nutrition, unit: 'g' as const, nutritionKnown: true },
+		}
+
+		expect(matchesFoodProductDraft(product, draft)).toBe(true)
+		expect(matchesFoodProductDraft({
+			...product,
+			chars: { ...product.chars, carbs: 30 },
+		}, draft)).toBe(false)
+		expect(matchesFoodProductDraft({
+			...product,
+			quantity: 200,
+		}, draft)).toBe(false)
+		expect(matchesFoodProductDraft(product, {
+			...draft,
+			nutrition: null,
+		})).toBe(false)
+	})
+
 	it('ranks known products by the remaining macros and ignores completed goals', () => {
 		const suggestions = getFoodSuggestions([
 			{
@@ -101,7 +130,12 @@ describe('diary helpers', () => {
 	})
 
 	it('returns no suggestions when every macro goal is reached', () => {
-		expect(getFoodSuggestions([], {
+		expect(getFoodSuggestions([{
+			id: 'rice',
+			name: 'Рис',
+			quantity: 100,
+			chars: { calories: 130, proteins: 2.7, fats: 0.3, carbs: 28 },
+		}], {
 			proteins: 100,
 			fats: 70,
 			carbs: 250,

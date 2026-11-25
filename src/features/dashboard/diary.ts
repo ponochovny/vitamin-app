@@ -29,9 +29,39 @@ export interface FoodSuggestionProduct {
 	irritant_reason?: string | null
 }
 
+export interface FoodProductDraft {
+	name: string
+	unit: 'g' | 'ml' | 'piece'
+	referenceQuantity: number
+	nutrition: FoodNutrition | null
+}
+
 export interface FoodSuggestion {
 	product: FoodSuggestionProduct
 	matches: Array<{ key: FoodMacroKey; label: string; amount: number }>
+}
+
+export function matchesFoodProductDraft(
+	product: Pick<FoodSuggestionProduct, 'name' | 'quantity' | 'chars'>,
+	draft: FoodProductDraft,
+) {
+	if (
+		product.name !== draft.name.trim()
+		|| product.quantity !== draft.referenceQuantity
+		|| product.chars.unit !== draft.unit
+	) {
+		return false
+	}
+
+	if (draft.nutrition === null) return product.chars.nutritionKnown === false
+	if (product.chars.nutritionKnown === false) return false
+
+	return (
+		product.chars.calories === draft.nutrition.calories
+		&& product.chars.proteins === draft.nutrition.proteins
+		&& product.chars.fats === draft.nutrition.fats
+		&& product.chars.carbs === draft.nutrition.carbs
+	)
 }
 
 export function getFoodSuggestions(

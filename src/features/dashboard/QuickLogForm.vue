@@ -52,13 +52,16 @@ const emit = defineEmits<{
 		nutrition: { calories: number; proteins: number; fats: number; carbs: number } | null
 		idempotencyKey: string
 	}]
-	drink: [entry: {
-		kind: DrinkKind
-		volumeMl: number
-		drinkTypeId: string | null
-		name: string | null
-		irritant: { ingredient: string; reason: string } | null
-	}]
+	drink: [
+		entry: {
+			kind: DrinkKind
+			volumeMl: number
+			drinkTypeId: string | null
+			name: string | null
+			irritant: { ingredient: string; reason: string } | null
+		},
+		onTypeSaved?: (id: string) => void,
+	]
 	editProduct: [product: Product]
 }>()
 
@@ -162,12 +165,29 @@ watch(matchingProducts, (matches) => {
 	}
 })
 
-watch(selectedDrinkType, (type) => {
-	irritantMarked.value = Boolean(type?.irritant_ingredient)
-	irritantIngredient.value = type?.irritant_ingredient ?? ''
-	irritantReason.value = type?.irritant_reason ?? ''
-	drinkError.value = ''
-})
+watch(
+	() => {
+		const type = selectedDrinkType.value
+		return {
+			id: type?.id ?? null,
+			irritantIngredient: type?.irritant_ingredient ?? '',
+			irritantReason: type?.irritant_reason ?? '',
+		}
+	},
+	(type, previousType) => {
+		const hasDirtyDraft =
+			irritantMarked.value !== Boolean(previousType.irritantIngredient)
+			|| irritantIngredient.value !== previousType.irritantIngredient
+			|| irritantReason.value !== previousType.irritantReason
+
+		if (type.id !== previousType.id || !hasDirtyDraft) {
+			irritantMarked.value = Boolean(type.irritantIngredient)
+			irritantIngredient.value = type.irritantIngredient
+			irritantReason.value = type.irritantReason
+		}
+		drinkError.value = ''
+	}
+)
 
 function unitLabel(product: Product) {
 	return { g: 'г', ml: 'мл', piece: 'шт.' }[product.chars.unit ?? 'g']
@@ -324,6 +344,8 @@ function submitDrink() {
 		drinkTypeId: selectedDrinkType.value?.id ?? null,
 		name: normalizedName.name,
 		irritant: irritantResult.value,
+	}, (id) => {
+		drinkTypeId.value = id
 	})
 }
 </script>
