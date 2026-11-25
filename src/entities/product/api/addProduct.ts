@@ -16,6 +16,7 @@ const addProduct = async (
 			carbs,
 			unit,
 			portion,
+			nutritionKnown,
 			vitamins: { vitaminA, vitaminB, vitaminC },
 		},
 	}: IProduct
@@ -31,6 +32,7 @@ const addProduct = async (
 				carbs: Number(carbs),
 				unit,
 				portion,
+				nutritionKnown,
 				vitamins: {
 					vitaminA: Number(vitaminA),
 					vitaminB: Number(vitaminB),

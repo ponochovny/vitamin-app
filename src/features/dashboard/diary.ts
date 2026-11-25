@@ -35,6 +35,7 @@ export interface FoodProductDraft {
 	unit: 'g' | 'ml' | 'piece'
 	referenceQuantity: number
 	nutrition: FoodNutrition | null
+	composition?: string[]
 }
 
 export interface FoodSuggestion {
@@ -43,13 +44,15 @@ export interface FoodSuggestion {
 }
 
 export function matchesFoodProductDraft(
-	product: Pick<FoodSuggestionProduct, 'name' | 'quantity' | 'chars'>,
+	product: Pick<FoodSuggestionProduct, 'name' | 'quantity' | 'chars' | 'composition'>,
 	draft: FoodProductDraft,
 ) {
 	if (
 		product.name !== draft.name.trim()
 		|| product.quantity !== draft.referenceQuantity
 		|| product.chars.unit !== draft.unit
+		|| (draft.composition ?? []).join('\u0000')
+			!== (product.composition ?? []).join('\u0000')
 	) {
 		return false
 	}

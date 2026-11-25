@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, shallowRef } from 'vue'
+import { computed, reactive, shallowRef, watch } from 'vue'
 import {
 	Dialog,
 	DialogContent,
@@ -7,10 +7,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
-import {
-	type FoodProductInfo,
-	type LoggedFoodInfo,
-} from './foodProduct'
+import { type FoodProductInfo, type LoggedFoodInfo } from './foodProduct'
 import { parseDecimalInput } from '~/src/shared/numbers'
 import {
 	IRRITANT_INGREDIENT_MAX_LENGTH,
@@ -20,6 +17,10 @@ import {
 	parseProductComposition,
 	parseProductIrritant,
 } from '~/src/entities/product/irritant'
+import {
+	getNutritionSuggestionNotice,
+	requestNutritionSuggestion,
+} from '~/src/entities/product/api/suggestNutrition'
 
 const props = defineProps<{
 	open: boolean
@@ -36,6 +37,9 @@ const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const editing = shallowRef(false)
 const pending = shallowRef(false)
+const nutritionSuggestionPending = shallowRef(false)
+const nutritionSuggestionRequestId = shallowRef(0)
+const nutritionSuggestionNotice = shallowRef('')
 const editError = shallowRef('')
 const editSuccess = shallowRef('')
 const nameDraft = shallowRef('')
@@ -43,11 +47,17 @@ const irritantMarked = shallowRef(false)
 const irritantIngredientDraft = shallowRef('')
 const irritantReasonDraft = shallowRef('')
 const compositionDraft = shallowRef('')
-const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string>>({
+const draft = reactive<
+	Record<'calories' | 'proteins' | 'fats' | 'carbs', string>
+>({
 	calories: '',
 	proteins: '',
 	fats: '',
 	carbs: '',
+})
+
+watch([nameDraft, compositionDraft], () => {
+	nutritionSuggestionNotice.value = ''
 })
 
 const nutrientLabels = [
@@ -74,7 +84,9 @@ function unitLabel(unit: FoodProductInfo['chars']['unit'] | undefined) {
 }
 
 function formatNumber(value: number) {
-	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(
+		value,
+	)
 }
 
 function startEditing() {
@@ -92,16 +104,23 @@ function startEditing() {
 	}
 	editError.value = ''
 	editSuccess.value = ''
+	nutritionSuggestionNotice.value = ''
+	nutritionSuggestionRequestId.value += 1
+	nutritionSuggestionPending.value = false
 	editing.value = true
 }
 
 function cancelEditing() {
+	nutritionSuggestionRequestId.value += 1
+	nutritionSuggestionPending.value = false
 	editing.value = false
 	editError.value = ''
 }
 
 function updateOpen(open: boolean) {
 	if (!open) {
+		nutritionSuggestionRequestId.value += 1
+		nutritionSuggestionPending.value = false
 		editing.value = false
 		editError.value = ''
 		editSuccess.value = ''
@@ -109,10 +128,78 @@ function updateOpen(open: boolean) {
 	emit('update:open', open)
 }
 
+async function suggestNutrition() {
+	const product = props.product
+	const userId = user.value?.id
+	const name = nameDraft.value.trim()
+	if (!product || !userId || nutritionSuggestionPending.value) return
+	if (!name) {
+		editError.value = 'Вкажіть назву продукту перед запитом.'
+		return
+	}
+
+	const compositionInput = compositionDraft.value
+	const composition = parseProductComposition(compositionInput)
+	if (!composition.valid) {
+		editError.value =
+			composition.reason === 'too-many'
+				? `Укажіть не більше ${PRODUCT_COMPOSITION_MAX_ITEMS} компонентів складу.`
+				: 'Перевірте довжину кожного компонента складу.'
+		return
+	}
+
+	const requestId = nutritionSuggestionRequestId.value + 1
+	nutritionSuggestionRequestId.value = requestId
+	nutritionSuggestionPending.value = true
+	editError.value = ''
+	nutritionSuggestionNotice.value = ''
+	try {
+		const suggestion = await requestNutritionSuggestion({
+			name,
+			quantity: product.quantity,
+			unit: product.chars.unit ?? 'g',
+			composition: composition.value,
+		})
+		if (requestId !== nutritionSuggestionRequestId.value || !editing.value)
+			return
+		const currentProduct = props.product
+		if (
+			nameDraft.value.trim() !== name ||
+			compositionDraft.value !== compositionInput ||
+			!currentProduct ||
+			currentProduct.id !== product.id ||
+			currentProduct.quantity !== product.quantity ||
+			(currentProduct.chars.unit ?? 'g') !== (product.chars.unit ?? 'g')
+		) {
+			editError.value =
+				'Дані змінилися під час запиту. Повторіть запит, щоб отримати актуальну оцінку.'
+			return
+		}
+		draft.calories = String(suggestion.calories)
+		draft.proteins = String(suggestion.proteins)
+		draft.fats = String(suggestion.fats)
+		draft.carbs = String(suggestion.carbs)
+		nutritionSuggestionNotice.value = getNutritionSuggestionNotice(
+			suggestion.confidence,
+		)
+	} catch (cause) {
+		if (requestId !== nutritionSuggestionRequestId.value) return
+		editError.value =
+			cause instanceof Error
+				? cause.message
+				: 'Не вдалося отримати пропозицію ШІ. Можна ввести значення вручну.'
+	} finally {
+		if (requestId === nutritionSuggestionRequestId.value) {
+			nutritionSuggestionPending.value = false
+		}
+	}
+}
+
 async function saveNutrition() {
 	const product = props.product
 	const userId = user.value?.id
-	if (!product || !userId || pending.value) return
+	if (!product || !userId || pending.value || nutritionSuggestionPending.value)
+		return
 	const name = nameDraft.value.trim()
 	if (!name) {
 		editError.value = 'Вкажіть назву продукту.'
@@ -178,12 +265,15 @@ async function saveNutrition() {
 		})
 		.eq('id', product.id)
 		.eq('user_id', userId)
-		.select('id, name, quantity, chars, composition, irritant_ingredient, irritant_reason')
+		.select(
+			'id, name, quantity, chars, composition, irritant_ingredient, irritant_reason',
+		)
 		.maybeSingle()
 	pending.value = false
 
 	if (error || !data) {
-		editError.value = 'Не вдалося зберегти зміни. Перевірте з’єднання та спробуйте ще раз.'
+		editError.value =
+			'Не вдалося зберегти зміни. Перевірте з’єднання та спробуйте ще раз.'
 		return
 	}
 
@@ -222,9 +312,7 @@ async function saveNutrition() {
 					<h3 id="irritant-note-heading" class="font-semibold">
 						Можливий подразник
 					</h3>
-					<p class="mt-1 text-sm">
-						Особиста помітка, а не медична оцінка.
-					</p>
+					<p class="mt-1 text-sm">Особиста помітка, а не медична оцінка.</p>
 					<dl class="mt-3 space-y-2 text-sm">
 						<div>
 							<dt class="font-semibold">Інгредієнт</dt>
@@ -241,16 +329,21 @@ async function saveNutrition() {
 					</dl>
 				</section>
 
-				<section v-if="product.composition?.length" aria-labelledby="composition-heading">
+				<section
+					v-if="product.composition?.length"
+					aria-labelledby="composition-heading"
+				>
 					<h3 id="composition-heading" class="text-sm font-semibold">Склад</h3>
 					<ul class="mt-2 flex flex-wrap gap-2">
 						<li
 							v-for="component in product.composition"
 							:key="component"
 							class="rounded-full border px-2.5 py-1 text-xs"
-							:class="matchingIrritantComponents.includes(component)
-								? 'border-amber-300 bg-amber-100 font-semibold text-amber-950'
-								: 'border-border bg-muted/50 text-muted-foreground'"
+							:class="
+								matchingIrritantComponents.includes(component)
+									? 'border-amber-300 bg-amber-100 font-semibold text-amber-950'
+									: 'border-border bg-muted/50 text-muted-foreground'
+							"
 						>
 							{{ component }}
 						</li>
@@ -271,7 +364,37 @@ async function saveNutrition() {
 							Редагувати
 						</Button>
 					</div>
-					<form v-if="editing" class="mt-3 space-y-3" @submit.prevent="saveNutrition">
+					<form
+						v-if="editing"
+						class="mt-3 space-y-3"
+						@submit.prevent="saveNutrition"
+					>
+						<div class="space-y-2">
+							<Button
+								type="button"
+								variant="outline"
+								class="min-h-11 w-full"
+								:disabled="pending || nutritionSuggestionPending"
+								@click="suggestNutrition"
+							>
+								{{
+									nutritionSuggestionPending
+										? 'Запитуємо ШІ…'
+										: 'Запропонувати харчову цінність з ШІ'
+								}}
+							</Button>
+							<p class="text-xs text-muted-foreground">
+								Пропозиція розраховується для довідкової кількості та одиниці
+								виміру цього продукту. Перевірте значення перед збереженням.
+							</p>
+							<p
+								v-if="nutritionSuggestionNotice"
+								role="status"
+								class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+							>
+								{{ nutritionSuggestionNotice }}
+							</p>
+						</div>
 						<label class="block space-y-1 text-sm font-medium">
 							<span>Назва продукту</span>
 							<Input v-model="nameDraft" type="text" required />
@@ -290,8 +413,9 @@ async function saveNutrition() {
 						</label>
 						<p class="text-sm text-muted-foreground">
 							Вкажіть значення для {{ formatNumber(product.quantity) }}
-							{{ unitLabel(product.chars.unit) }} — саме така кількість є довідковою для цього продукту.
-							Дробові значення вводьте через кому або крапку.
+							{{ unitLabel(product.chars.unit) }} — саме така кількість є
+							довідковою для цього продукту. Дробові значення вводьте через кому
+							або крапку.
 						</p>
 						<label
 							v-for="nutrient in nutrientLabels"
@@ -311,7 +435,9 @@ async function saveNutrition() {
 							<legend class="px-1 text-sm font-semibold">
 								Особиста помітка
 							</legend>
-							<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+							<label
+								class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium"
+							>
 								<input
 									v-model="irritantMarked"
 									type="checkbox"
@@ -348,10 +474,18 @@ async function saveNutrition() {
 							{{ editError }}
 						</p>
 						<div class="flex gap-2">
-							<Button type="submit" :disabled="pending">
+							<Button
+								type="submit"
+								:disabled="pending || nutritionSuggestionPending"
+							>
 								{{ pending ? 'Зберігаємо…' : 'Зберегти' }}
 							</Button>
-							<Button type="button" variant="outline" :disabled="pending" @click="cancelEditing">
+							<Button
+								type="button"
+								variant="outline"
+								:disabled="pending || nutritionSuggestionPending"
+								@click="cancelEditing"
+							>
 								Скасувати
 							</Button>
 						</div>
@@ -385,11 +519,10 @@ async function saveNutrition() {
 				</p>
 
 				<section v-if="logged">
-					<h3 class="text-sm font-semibold">
-						У збереженому записі
-					</h3>
+					<h3 class="text-sm font-semibold">У збереженому записі</h3>
 					<p class="mt-1 text-sm text-muted-foreground">
-						{{ formatNumber(logged.quantity) }} {{ unitLabel(product.chars.unit) }}
+						{{ formatNumber(logged.quantity) }}
+						{{ unitLabel(product.chars.unit) }}
 					</p>
 					<dl
 						v-if="product.chars.nutritionKnown !== false"
@@ -400,9 +533,12 @@ async function saveNutrition() {
 							:key="nutrient.key"
 							class="rounded-xl bg-muted/60 px-3 py-2.5"
 						>
-							<dt class="text-xs text-muted-foreground">{{ nutrient.label }}</dt>
+							<dt class="text-xs text-muted-foreground">
+								{{ nutrient.label }}
+							</dt>
 							<dd class="mt-1 font-semibold">
-								{{ formatNumber(logged.nutrition[nutrient.key]) }} {{ nutrient.unit }}
+								{{ formatNumber(logged.nutrition[nutrient.key]) }}
+								{{ nutrient.unit }}
 							</dd>
 						</div>
 					</dl>

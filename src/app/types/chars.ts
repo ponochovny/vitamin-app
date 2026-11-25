@@ -19,6 +19,7 @@ export interface IChars {
 	carbs: number
 	unit?: 'g' | 'ml' | 'piece'
 	portion?: 'exact' | 'small' | 'medium' | 'large'
+	nutritionKnown?: boolean
 }
 
 export interface IProduct {

@@ -5,6 +5,9 @@ export default defineNuxtConfig({
 	devtools: { enabled: false },
 	css: ['~/src/app/assets/css/tailwind.css'],
 	runtimeConfig: {
+		googleGeminiApiKey: process.env.NUXT_GOOGLE_GEMINI_API_KEY || '',
+		googleGeminiModel:
+			process.env.NUXT_GOOGLE_GEMINI_MODEL || 'gemini-3.5-flash-lite',
 		public: {
 			vapidPublicKey: '',
 			siteUrl: '',
@@ -31,18 +34,21 @@ export default defineNuxtConfig({
 		'~/components',
 	],
 
-	modules: [
-		'@nuxtjs/supabase',
-		'@nuxt/fonts',
-		'@nuxtjs/color-mode',
-	],
+	modules: ['@nuxtjs/supabase', '@nuxt/fonts', '@nuxtjs/color-mode'],
 
 	supabase: {
 		redirectOptions: {
 			login: '/signin',
 			callback: '/auth/callback',
 			include: ['/account', '/products/**'],
-			exclude: ['/', '/signin', '/auth/callback', '/history', '/about', '/preview'],
+			exclude: [
+				'/',
+				'/signin',
+				'/auth/callback',
+				'/history',
+				'/about',
+				'/preview',
+			],
 			cookieRedirect: false,
 		},
 	},

@@ -13,8 +13,14 @@ import {
 import {
 	IRRITANT_INGREDIENT_MAX_LENGTH,
 	IRRITANT_REASON_MAX_LENGTH,
+	PRODUCT_COMPOSITION_MAX_ITEMS,
+	parseProductComposition,
 	parseProductIrritant,
 } from '~/src/entities/product/irritant'
+import {
+	getNutritionSuggestionNotice,
+	requestNutritionSuggestion,
+} from '~/src/entities/product/api/suggestNutrition'
 
 interface Product {
 	id: string
@@ -45,14 +51,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	food: [entry: { productId: string; quantity: number }]
-	createFood: [entry: {
-		name: string
-		unit: ProductUnit
-		referenceQuantity: number
-		quantity: number
-		nutrition: { calories: number; proteins: number; fats: number; carbs: number } | null
-		idempotencyKey: string
-	}]
+	createFood: [
+		entry: {
+			name: string
+			unit: ProductUnit
+			referenceQuantity: number
+			quantity: number
+			nutrition: {
+				calories: number
+				proteins: number
+				fats: number
+				carbs: number
+			} | null
+			composition: string[]
+			idempotencyKey: string
+		},
+	]
 	drink: [
 		entry: {
 			kind: DrinkKind
@@ -78,10 +92,17 @@ const newProductCalories = shallowRef('')
 const newProductProteins = shallowRef('')
 const newProductFats = shallowRef('')
 const newProductCarbs = shallowRef('')
+const newProductComposition = shallowRef('')
+const nutritionSuggestionPending = shallowRef(false)
+const nutritionSuggestionNotice = shallowRef('')
+const nutritionSuggestionRequestId = shallowRef(0)
+const nutritionDetails = useTemplateRef<HTMLDetailsElement>('nutritionDetails')
 const newProductRequestId = shallowRef('')
 const formError = shallowRef('')
 const newProductForm = useTemplateRef<HTMLFormElement>('newProductForm')
-const addProductButtonContainer = useTemplateRef<HTMLDivElement>('addProductButtonContainer')
+const addProductButtonContainer = useTemplateRef<HTMLDivElement>(
+	'addProductButtonContainer',
+)
 const drinkKind = shallowRef<'water' | 'coffee' | 'tea' | 'other'>('water')
 const drinkTypeId = shallowRef('')
 const drinkTypeName = shallowRef('')
@@ -93,15 +114,15 @@ const volumePreset = shallowRef('300')
 const volumeMl = shallowRef<number | ''>(300)
 
 const selectedProduct = computed(() =>
-	props.products.find((product) => product.id === productId.value)
+	props.products.find((product) => product.id === productId.value),
 )
 const selectedProductPortions = computed(() => {
 	const product = selectedProduct.value
 	return product
 		? getApproximatePortionQuantities(
-			product.quantity,
-			product.chars.unit ?? 'g',
-		)
+				product.quantity,
+				product.chars.unit ?? 'g',
+			)
 		: []
 })
 const matchingProducts = computed(() => {
@@ -111,33 +132,45 @@ const recentProducts = computed(() =>
 	props.recentFoods.flatMap((entry) => {
 		const product = props.products.find((item) => item.id === entry.productId)
 		return product ? [{ product, quantity: entry.quantity }] : []
-	})
+	}),
 )
 const newProductReferenceQuantity = computed(() =>
-	newProductUnit.value === 'piece' ? 1 : 100
+	newProductUnit.value === 'piece' ? 1 : 100,
 )
-const newProductUnitLabel = computed(() =>
-	({ g: 'г', ml: 'мл', piece: 'шт.' })[newProductUnit.value]
+const newProductUnitLabel = computed(
+	() => ({ g: 'г', ml: 'мл', piece: 'шт.' })[newProductUnit.value],
 )
 const newProductPortions = computed(() =>
 	getApproximatePortionQuantities(
 		newProductReferenceQuantity.value,
 		newProductUnit.value,
-	)
+	),
 )
 const preview = computed(() => {
-	if (!selectedProduct.value || selectedProduct.value.chars.nutritionKnown === false || !Number(quantity.value)) return null
+	if (
+		!selectedProduct.value ||
+		selectedProduct.value.chars.nutritionKnown === false ||
+		!Number(quantity.value)
+	)
+		return null
 	return {
-		calories: selectedProduct.value.chars.calories * Number(quantity.value) / selectedProduct.value.quantity,
-		proteins: selectedProduct.value.chars.proteins * Number(quantity.value) / selectedProduct.value.quantity,
+		calories:
+			(selectedProduct.value.chars.calories * Number(quantity.value)) /
+			selectedProduct.value.quantity,
+		proteins:
+			(selectedProduct.value.chars.proteins * Number(quantity.value)) /
+			selectedProduct.value.quantity,
 	}
 })
-const drinkLabel = computed(() => ({
-	water: 'воду',
-	coffee: 'каву',
-	tea: 'чай',
-	other: 'напій',
-})[drinkKind.value])
+const drinkLabel = computed(
+	() =>
+		({
+			water: 'воду',
+			coffee: 'каву',
+			tea: 'чай',
+			other: 'напій',
+		})[drinkKind.value],
+)
 const drinkTypesForKind = computed(() =>
 	props.drinkTypes.filter((type) => type.kind === drinkKind.value),
 )
@@ -156,11 +189,25 @@ watch(
 			quantity.value = products[0].quantity
 		}
 	},
-	{ immediate: true }
+	{ immediate: true },
+)
+
+watch(
+	() => [
+		newProductName.value.trim(),
+		newProductUnit.value,
+		newProductComposition.value,
+	],
+	() => {
+		nutritionSuggestionNotice.value = ''
+	},
 )
 
 watch(matchingProducts, (matches) => {
-	if (productId.value && !matches.some((product) => product.id === productId.value)) {
+	if (
+		productId.value &&
+		!matches.some((product) => product.id === productId.value)
+	) {
 		productId.value = ''
 		quantity.value = ''
 	}
@@ -177,9 +224,9 @@ watch(
 	},
 	(type, previousType) => {
 		const hasDirtyDraft =
-			irritantMarked.value !== Boolean(previousType.irritantIngredient)
-			|| irritantIngredient.value !== previousType.irritantIngredient
-			|| irritantReason.value !== previousType.irritantReason
+			irritantMarked.value !== Boolean(previousType.irritantIngredient) ||
+			irritantIngredient.value !== previousType.irritantIngredient ||
+			irritantReason.value !== previousType.irritantReason
 
 		if (type.id !== previousType.id || !hasDirtyDraft) {
 			irritantMarked.value = Boolean(type.irritantIngredient)
@@ -187,7 +234,7 @@ watch(
 			irritantReason.value = type.irritantReason
 		}
 		drinkError.value = ''
-	}
+	},
 )
 
 function unitLabel(product: Product) {
@@ -203,6 +250,8 @@ function selectProduct(id: string, recentQuantity?: number) {
 }
 
 async function startNewProduct() {
+	nutritionSuggestionRequestId.value += 1
+	nutritionSuggestionPending.value = false
 	newProductName.value = productSearch.value.trim()
 	newProductUnit.value = 'piece'
 	newProductQuantity.value = 1
@@ -210,15 +259,20 @@ async function startNewProduct() {
 	newProductProteins.value = ''
 	newProductFats.value = ''
 	newProductCarbs.value = ''
+	newProductComposition.value = ''
+	nutritionSuggestionNotice.value = ''
 	formError.value = ''
-	newProductRequestId.value = globalThis.crypto?.randomUUID?.()
-		?? `product-${Date.now()}-${Math.random().toString(36).slice(2)}`
+	newProductRequestId.value =
+		globalThis.crypto?.randomUUID?.() ??
+		`product-${Date.now()}-${Math.random().toString(36).slice(2)}`
 	creatingProduct.value = true
 	await nextTick()
 	newProductForm.value?.querySelector<HTMLInputElement>('input')?.focus()
 }
 
 async function cancelNewProduct() {
+	nutritionSuggestionRequestId.value += 1
+	nutritionSuggestionPending.value = false
 	creatingProduct.value = false
 	formError.value = ''
 	newProductRequestId.value = ''
@@ -227,7 +281,8 @@ async function cancelNewProduct() {
 }
 
 function applyVolumePreset() {
-	if (volumePreset.value !== 'custom') volumeMl.value = Number(volumePreset.value)
+	if (volumePreset.value !== 'custom')
+		volumeMl.value = Number(volumePreset.value)
 }
 
 function resetDrinkType() {
@@ -245,21 +300,99 @@ function resetDrinkType() {
 }
 
 function formatNumber(value: number) {
-	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(value)
+	return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 1 }).format(
+		value,
+	)
+}
+
+async function suggestNewProductNutrition() {
+	const name = newProductName.value.trim()
+	const compositionInput = newProductComposition.value
+	if (!name) {
+		formError.value = 'Спочатку вкажіть назву страви.'
+		return
+	}
+	if (nutritionSuggestionPending.value) return
+
+	const composition = parseProductComposition(compositionInput)
+	if (!composition.valid) {
+		formError.value =
+			composition.reason === 'too-many'
+				? `Укажіть не більше ${PRODUCT_COMPOSITION_MAX_ITEMS} компонентів складу.`
+				: 'Перевірте довжину кожного компонента складу.'
+		return
+	}
+
+	const requestId = nutritionSuggestionRequestId.value + 1
+	nutritionSuggestionRequestId.value = requestId
+	const requestedUnit = newProductUnit.value
+	const requestedQuantity = newProductReferenceQuantity.value
+	nutritionSuggestionPending.value = true
+	formError.value = ''
+	nutritionSuggestionNotice.value = ''
+	try {
+		const suggestion = await requestNutritionSuggestion({
+			name,
+			quantity: requestedQuantity,
+			unit: requestedUnit,
+			composition: composition.value,
+		})
+		if (
+			requestId !== nutritionSuggestionRequestId.value ||
+			!creatingProduct.value
+		)
+			return
+		if (
+			newProductName.value.trim() !== name ||
+			newProductUnit.value !== requestedUnit ||
+			newProductReferenceQuantity.value !== requestedQuantity ||
+			newProductComposition.value !== compositionInput
+		) {
+			formError.value =
+				'Дані змінилися під час запиту. Повторіть запит, щоб отримати актуальну оцінку.'
+			return
+		}
+		newProductCalories.value = String(suggestion.calories)
+		newProductProteins.value = String(suggestion.proteins)
+		newProductFats.value = String(suggestion.fats)
+		newProductCarbs.value = String(suggestion.carbs)
+		nutritionSuggestionNotice.value = getNutritionSuggestionNotice(
+			suggestion.confidence,
+		)
+		if (nutritionDetails.value) nutritionDetails.value.open = true
+	} catch (cause) {
+		if (requestId === nutritionSuggestionRequestId.value) {
+			formError.value =
+				cause instanceof Error
+					? cause.message
+					: 'Не вдалося отримати пропозицію ШІ. Можна ввести значення вручну.'
+		}
+	} finally {
+		if (requestId === nutritionSuggestionRequestId.value) {
+			nutritionSuggestionPending.value = false
+		}
+	}
 }
 
 function submitFood() {
 	const selectedQuantity = Number(quantity.value)
 	if (
-		!selectedProduct.value
-		|| !props.products.some((product) => product.id === selectedProduct.value?.id)
-		|| !Number.isFinite(selectedQuantity)
-		|| selectedQuantity <= 0
-	) return
-	emit('food', { productId: selectedProduct.value.id, quantity: selectedQuantity })
+		!selectedProduct.value ||
+		!props.products.some(
+			(product) => product.id === selectedProduct.value?.id,
+		) ||
+		!Number.isFinite(selectedQuantity) ||
+		selectedQuantity <= 0
+	)
+		return
+	emit('food', {
+		productId: selectedProduct.value.id,
+		quantity: selectedQuantity,
+	})
 }
 
 function submitNewProduct() {
+	if (nutritionSuggestionPending.value) return
 	const name = newProductName.value.trim()
 	const selectedQuantity = Number(newProductQuantity.value)
 	if (!name || !Number.isFinite(selectedQuantity) || selectedQuantity <= 0) {
@@ -274,9 +407,18 @@ function submitNewProduct() {
 		carbs: newProductCarbs.value,
 	})
 	if (!parsedNutrition.valid) {
-		formError.value = parsedNutrition.reason === 'partial'
-			? 'Укажіть усі чотири значення харчової цінності або залиште поля порожніми.'
-			: 'Значення харчової цінності мають бути невід’ємними числами.'
+		formError.value =
+			parsedNutrition.reason === 'partial'
+				? 'Укажіть усі чотири значення харчової цінності або залиште поля порожніми.'
+				: 'Значення харчової цінності мають бути невід’ємними числами.'
+		return
+	}
+	const parsedComposition = parseProductComposition(newProductComposition.value)
+	if (!parsedComposition.valid) {
+		formError.value =
+			parsedComposition.reason === 'too-many'
+				? `Укажіть не більше ${PRODUCT_COMPOSITION_MAX_ITEMS} компонентів складу.`
+				: 'Перевірте довжину кожного компонента складу.'
 		return
 	}
 
@@ -287,6 +429,7 @@ function submitNewProduct() {
 		referenceQuantity: newProductReferenceQuantity.value,
 		quantity: selectedQuantity,
 		nutrition: parsedNutrition.nutrition,
+		composition: parsedComposition.value,
 		idempotencyKey: newProductRequestId.value,
 	})
 }
@@ -317,9 +460,10 @@ function submitDrink() {
 		return
 	}
 	if (
-		!selectedDrinkType.value
-		&& props.drinkTypes.some(
-			(type) => normalizeDrinkTypeName(type.name).nameKey === normalizedName.nameKey,
+		!selectedDrinkType.value &&
+		props.drinkTypes.some(
+			(type) =>
+				normalizeDrinkTypeName(type.name).nameKey === normalizedName.nameKey,
 		)
 	) {
 		drinkError.value = 'Цей вид уже є у списку. Оберіть його вище.'
@@ -339,15 +483,19 @@ function submitDrink() {
 	}
 
 	drinkError.value = ''
-	emit('drink', {
-		kind: drinkKind.value,
-		volumeMl: selectedVolume,
-		drinkTypeId: selectedDrinkType.value?.id ?? null,
-		name: normalizedName.name,
-		irritant: irritantResult.value,
-	}, (id) => {
-		drinkTypeId.value = id
-	})
+	emit(
+		'drink',
+		{
+			kind: drinkKind.value,
+			volumeMl: selectedVolume,
+			drinkTypeId: selectedDrinkType.value?.id ?? null,
+			name: normalizedName.name,
+			irritant: irritantResult.value,
+		},
+		(id) => {
+			drinkTypeId.value = id
+		},
+	)
 }
 </script>
 
@@ -362,7 +510,9 @@ function submitDrink() {
 				@click="mode = 'food'"
 			>
 				Їжа
-				<span class="mt-1 block text-xs font-normal text-muted-foreground">Записати продукт</span>
+				<span class="mt-1 block text-xs font-normal text-muted-foreground"
+					>Записати продукт</span
+				>
 			</button>
 			<button
 				type="button"
@@ -372,7 +522,9 @@ function submitDrink() {
 				@click="mode = 'drink'"
 			>
 				Напій
-				<span class="mt-1 block text-xs font-normal text-muted-foreground">Вода, кава, чай та інші напої</span>
+				<span class="mt-1 block text-xs font-normal text-muted-foreground"
+					>Вода, кава, чай та інші напої</span
+				>
 			</button>
 		</div>
 
@@ -388,13 +540,23 @@ function submitDrink() {
 			<div>
 				<h3 class="font-semibold">Додати страву та записати порцію</h3>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Назва, одиниця виміру та кількість обов’язкові. Нову страву буде збережено для наступних записів.
+					Назва, одиниця виміру та кількість обов’язкові. Нову страву буде
+					збережено для наступних записів.
 				</p>
 			</div>
-			<form ref="newProductForm" class="space-y-3" @submit.prevent="submitNewProduct">
+			<form
+				ref="newProductForm"
+				class="space-y-3"
+				@submit.prevent="submitNewProduct"
+			>
 				<label class="block space-y-1 text-sm font-medium">
 					<span>Назва страви</span>
-					<Input v-model="newProductName" maxlength="120" placeholder="Наприклад, млинці з сиром" required />
+					<Input
+						v-model="newProductName"
+						maxlength="120"
+						placeholder="Наприклад, млинці з сиром"
+						required
+					/>
 				</label>
 				<div class="grid grid-cols-2 gap-3">
 					<label class="block space-y-1 text-sm font-medium">
@@ -410,12 +572,22 @@ function submitDrink() {
 					</label>
 					<label class="block space-y-1 text-sm font-medium">
 						<span>З’їдено</span>
-						<Input v-model="newProductQuantity" type="number" min="0.1" step="any" required />
+						<Input
+							v-model="newProductQuantity"
+							type="number"
+							min="0.1"
+							step="any"
+							required
+						/>
 					</label>
 				</div>
 				<div class="space-y-2">
 					<p class="text-sm font-medium">Швидкий вибір порції · приблизно</p>
-					<div class="flex flex-wrap gap-2" role="group" aria-label="Приблизний розмір порції">
+					<div
+						class="flex flex-wrap gap-2"
+						role="group"
+						aria-label="Приблизний розмір порції"
+					>
 						<button
 							v-for="portion in newProductPortions"
 							:key="portion"
@@ -436,41 +608,111 @@ function submitDrink() {
 						Кількість можна змінити вручну.
 					</p>
 				</div>
-				<details class="rounded-lg border border-border px-3 py-2.5">
-					<summary class="flex min-h-11 cursor-pointer items-center text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-						Додати харчову цінність, якщо вона відома
+				<div class="space-y-2">
+					<Button
+						type="button"
+						variant="outline"
+						class="min-h-11 w-full"
+						:disabled="pending || nutritionSuggestionPending"
+						@click="suggestNewProductNutrition"
+					>
+						{{
+							nutritionSuggestionPending
+								? 'Запитуємо ШІ…'
+								: 'Запропонувати харчову цінність з ШІ'
+						}}
+					</Button>
+					<p class="text-xs text-muted-foreground">
+						ШІ запропонує оцінку для довідкової кількості. Перевірте та
+						відредагуйте значення перед збереженням.
+					</p>
+					<p
+						v-if="nutritionSuggestionNotice"
+						role="status"
+						class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+					>
+						{{ nutritionSuggestionNotice }}
+					</p>
+				</div>
+				<details
+					ref="nutritionDetails"
+					class="rounded-lg border border-border px-3 py-2.5"
+				>
+					<summary
+						class="flex min-h-11 cursor-pointer items-center text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+					>
+						Склад та харчова цінність, якщо відомі
 					</summary>
+					<label class="mt-3 block space-y-1 text-sm font-medium">
+						<span>Склад, необов’язково</span>
+						<textarea
+							v-model="newProductComposition"
+							rows="2"
+							placeholder="Наприклад: молоко, овес, сіль"
+							class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+						/>
+						<span class="block text-xs font-normal text-muted-foreground">
+							Склад допоможе уточнити пропозицію, але його можна не вказувати.
+						</span>
+					</label>
 					<p class="mt-2 text-xs text-muted-foreground">
-						На {{ newProductReferenceQuantity }} {{ newProductUnitLabel }}.
-						Якщо значення невідомі, залиште всі поля порожніми — ми не вважатимемо калорійність страви нульовою.
+						На {{ newProductReferenceQuantity }} {{ newProductUnitLabel }}. Якщо
+						значення невідомі, залиште всі поля порожніми — ми не вважатимемо
+						калорійність страви нульовою.
 					</p>
 					<div class="mt-3 grid grid-cols-2 gap-3">
 						<label class="space-y-1 text-sm">
 							<span class="block">Калорії, ккал</span>
-							<Input v-model="newProductCalories" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
+							<Input
+								v-model="newProductCalories"
+								type="text"
+								inputmode="decimal"
+								placeholder="Наприклад, 6,7"
+							/>
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Білки, г</span>
-							<Input v-model="newProductProteins" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
+							<Input
+								v-model="newProductProteins"
+								type="text"
+								inputmode="decimal"
+								placeholder="Наприклад, 6,7"
+							/>
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Жири, г</span>
-							<Input v-model="newProductFats" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
+							<Input
+								v-model="newProductFats"
+								type="text"
+								inputmode="decimal"
+								placeholder="Наприклад, 6,7"
+							/>
 						</label>
 						<label class="space-y-1 text-sm">
 							<span class="block">Вуглеводи, г</span>
-							<Input v-model="newProductCarbs" type="text" inputmode="decimal" placeholder="Наприклад, 6,7" />
+							<Input
+								v-model="newProductCarbs"
+								type="text"
+								inputmode="decimal"
+								placeholder="Наприклад, 6,7"
+							/>
 						</label>
 					</div>
 				</details>
-				<p v-if="formError" role="alert" class="text-sm text-destructive">{{ formError }}</p>
+				<p v-if="formError" role="alert" class="text-sm text-destructive">
+					{{ formError }}
+				</p>
 				<Button type="submit" class="min-h-11 w-full" :disabled="pending">
 					{{ pending ? 'Зберігаю…' : 'Зберегти страву та запис' }}
 				</Button>
 			</form>
 		</div>
 
-		<form v-else-if="mode === 'food'" class="space-y-3" @submit.prevent="submitFood">
+		<form
+			v-else-if="mode === 'food'"
+			class="space-y-3"
+			@submit.prevent="submitFood"
+		>
 			<div v-if="recentProducts.length" class="space-y-2">
 				<p class="text-sm font-medium">Нещодавно записували</p>
 				<div class="flex flex-wrap gap-2">
@@ -482,11 +724,14 @@ function submitDrink() {
 						<button
 							type="button"
 							class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-							:class="productId === entry.product.id ? 'border-primary bg-muted' : ''"
+							:class="
+								productId === entry.product.id ? 'border-primary bg-muted' : ''
+							"
 							:aria-pressed="productId === entry.product.id"
 							@click="selectProduct(entry.product.id, entry.quantity)"
 						>
-							{{ entry.product.name }} · {{ formatNumber(entry.quantity) }} {{ unitLabel(entry.product) }}
+							{{ entry.product.name }} · {{ formatNumber(entry.quantity) }}
+							{{ unitLabel(entry.product) }}
 							<span
 								v-if="entry.product.irritant_ingredient"
 								class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950"
@@ -508,9 +753,17 @@ function submitDrink() {
 			</div>
 			<label class="block space-y-1 text-sm font-medium">
 				<span>Знайти продукт</span>
-				<Input v-model="productSearch" type="search" placeholder="Наприклад, яблуко" />
+				<Input
+					v-model="productSearch"
+					type="search"
+					placeholder="Наприклад, яблуко"
+				/>
 			</label>
-			<div class="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-1" role="group" aria-label="Продукти">
+			<div
+				class="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-1"
+				role="group"
+				aria-label="Продукти"
+			>
 				<div
 					v-for="product in matchingProducts"
 					:key="product.id"
@@ -541,7 +794,11 @@ function submitDrink() {
 						<span aria-hidden="true">i</span>
 					</button>
 				</div>
-				<p v-if="!matchingProducts.length" role="status" class="px-3 py-2 text-sm text-muted-foreground">
+				<p
+					v-if="!matchingProducts.length"
+					role="status"
+					class="px-3 py-2 text-sm text-muted-foreground"
+				>
 					Нічого не знайдено.
 				</p>
 			</div>
@@ -562,8 +819,9 @@ function submitDrink() {
 				</template>
 				<template v-else>
 					Довідкове значення:
-					{{ formatNumber(selectedProduct.chars.calories) }} ккал
-					за {{ selectedProduct.quantity }} {{ unitLabel(selectedProduct) }} · орієнтовне значення
+					{{ formatNumber(selectedProduct.chars.calories) }} ккал за
+					{{ selectedProduct.quantity }} {{ unitLabel(selectedProduct) }} ·
+					орієнтовне значення
 				</template>
 			</p>
 			<Button
@@ -577,12 +835,19 @@ function submitDrink() {
 				Довідка та редагування продукту
 			</Button>
 			<label class="block space-y-1 text-sm font-medium">
-				<span>Кількість, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
+				<span
+					>Кількість,
+					{{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span
+				>
 				<Input v-model="quantity" type="number" min="0.1" step="any" required />
 			</label>
 			<div v-if="selectedProductPortions.length" class="space-y-2">
 				<p class="text-sm font-medium">Швидкий вибір порції · приблизно</p>
-				<div class="flex flex-wrap gap-2" role="group" aria-label="Приблизний розмір порції">
+				<div
+					class="flex flex-wrap gap-2"
+					role="group"
+					aria-label="Приблизний розмір порції"
+				>
 					<button
 						v-for="portion in selectedProductPortions"
 						:key="portion"
@@ -591,7 +856,8 @@ function submitDrink() {
 						:aria-pressed="Number(quantity) === portion"
 						@click="quantity = portion"
 					>
-						{{ formatNumber(portion) }} {{ selectedProduct ? unitLabel(selectedProduct) : '' }}
+						{{ formatNumber(portion) }}
+						{{ selectedProduct ? unitLabel(selectedProduct) : '' }}
 					</button>
 				</div>
 				<p
@@ -599,18 +865,23 @@ function submitDrink() {
 					class="text-xs text-muted-foreground"
 				>
 					Варіанти розраховано від довідкової кількості
-					{{ formatNumber(selectedProduct.quantity) }} {{ unitLabel(selectedProduct) }}.
-					Кількість можна змінити вручну.
+					{{ formatNumber(selectedProduct.quantity) }}
+					{{ unitLabel(selectedProduct) }}. Кількість можна змінити вручну.
 				</p>
 				<p v-else class="text-xs text-muted-foreground">
 					Оберіть приблизну кількість або введіть її вручну.
 				</p>
 			</div>
 			<p v-if="preview" class="text-sm">
-				До щоденника буде записано приблизно <strong>{{ formatNumber(preview.calories) }} ккал</strong>
-				і {{ formatNumber(preview.proteins) }} г білка.
+				До щоденника буде записано приблизно
+				<strong>{{ formatNumber(preview.calories) }} ккал</strong> і
+				{{ formatNumber(preview.proteins) }} г білка.
 			</p>
-			<Button type="submit" class="min-h-11 w-full" :disabled="pending || !selectedProduct">
+			<Button
+				type="submit"
+				class="min-h-11 w-full"
+				:disabled="pending || !selectedProduct"
+			>
 				{{ pending ? 'Зберігаю...' : 'Записати їжу' }}
 			</Button>
 		</form>
@@ -658,7 +929,9 @@ function submitDrink() {
 				</label>
 				<fieldset class="space-y-3 rounded-xl border border-border p-3">
 					<legend class="px-1 text-sm font-semibold">Особиста помітка</legend>
-					<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+					<label
+						class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium"
+					>
 						<input
 							v-model="irritantMarked"
 							type="checkbox"
@@ -706,18 +979,26 @@ function submitDrink() {
 					<option value="custom">Власний об’єм</option>
 				</select>
 			</label>
-			<label v-if="volumePreset === 'custom'" class="block space-y-1 text-sm font-medium">
+			<label
+				v-if="volumePreset === 'custom'"
+				class="block space-y-1 text-sm font-medium"
+			>
 				<span>Об’єм, мл</span>
 				<Input v-model="volumeMl" type="number" min="1" step="1" required />
 			</label>
 			<p class="text-sm text-muted-foreground">
-				До цілі зараховується лише вода. Чай, кава та інші напої залишаться у щоденнику, але не збільшать лічильник води.
+				До цілі зараховується лише вода. Чай, кава та інші напої залишаться у
+				щоденнику, але не збільшать лічильник води.
 			</p>
 			<p v-if="drinkError" role="alert" class="text-sm text-destructive">
 				{{ drinkError }}
 			</p>
 			<Button type="submit" class="min-h-11 w-full" :disabled="pending">
-				{{ pending ? 'Зберігаю...' : `Записати ${drinkKind === 'water' ? drinkLabel : drinkTypeName || selectedDrinkType?.name || drinkLabel}` }}
+				{{
+					pending
+						? 'Зберігаю...'
+						: `Записати ${drinkKind === 'water' ? drinkLabel : drinkTypeName || selectedDrinkType?.name || drinkLabel}`
+				}}
 			</Button>
 		</form>
 	</section>

@@ -1630,6 +1630,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		name: string
 		quantity: number
 		chars: unknown
+		composition: string[] | null
 		idempotency_key: string | null
 	}
 	let createdProduct: SavedProductRow | null = null
@@ -1637,7 +1638,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	if (pendingEntry) {
 		const recovered = await supabase
 			.from('products')
-			.select('id, name, quantity, chars, idempotency_key')
+			.select('id, name, quantity, chars, composition, idempotency_key')
 			.eq('user_id', id)
 			.eq('idempotency_key', entry.idempotencyKey)
 			.maybeSingle()
@@ -1657,18 +1658,19 @@ async function createAndLogFood(entry: NewFoodEntry) {
 					name: submission.name.trim(),
 					quantity: submission.referenceQuantity,
 					chars,
+					composition: submission.composition,
 					idempotency_key: submission.idempotencyKey,
 				},
 				{ onConflict: 'idempotency_key', ignoreDuplicates: true },
 			)
-			.select('id, name, quantity, chars, idempotency_key')
+			.select('id, name, quantity, chars, composition, idempotency_key')
 			.single()
 		createdProduct = data
 
 		if (productError || !createdProduct) {
 			const recovered = await supabase
 				.from('products')
-				.select('id, name, quantity, chars, idempotency_key')
+				.select('id, name, quantity, chars, composition, idempotency_key')
 				.eq('user_id', id)
 				.eq('idempotency_key', submission.idempotencyKey)
 				.maybeSingle()
@@ -1696,6 +1698,7 @@ async function createAndLogFood(entry: NewFoodEntry) {
 		quantity: Number(createdProduct.quantity),
 		idempotencyKey: createdProduct.idempotency_key ?? submission.idempotencyKey,
 		chars: createdProduct.chars as Product['chars'],
+		composition: createdProduct.composition ?? [],
 	}
 	products.value = [
 		...products.value.filter((item) => item.id !== product.id),

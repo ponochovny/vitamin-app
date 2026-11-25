@@ -64,11 +64,13 @@ describe('diary helpers', () => {
 			unit: 'g' as const,
 			referenceQuantity: 100,
 			nutrition: { calories: 130, proteins: 2.7, fats: 0.3, carbs: 28 },
+			composition: ['рис', 'вода'],
 		}
 		const product = {
 			name: 'Рис',
 			quantity: 100,
 			chars: { ...draft.nutrition, unit: 'g' as const, nutritionKnown: true },
+			composition: ['рис', 'вода'],
 		}
 
 		expect(matchesFoodProductDraft(product, draft)).toBe(true)
@@ -79,6 +81,10 @@ describe('diary helpers', () => {
 		expect(matchesFoodProductDraft({
 			...product,
 			quantity: 200,
+		}, draft)).toBe(false)
+		expect(matchesFoodProductDraft({
+			...product,
+			composition: ['рис', 'сіль'],
 		}, draft)).toBe(false)
 		expect(matchesFoodProductDraft(product, {
 			...draft,
