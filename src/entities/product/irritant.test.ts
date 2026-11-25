@@ -35,6 +35,36 @@ describe('parseProductIrritant', () => {
 				),
 			).toEqual(['Сухе молоко'])
 		})
+
+		it('matches whole words and contiguous phrases, not substrings', () => {
+			expect(
+				findMatchingIrritantComponents(
+					['Порошок сухе молоко'],
+					'сухе молоко',
+				),
+			).toEqual(['Порошок сухе молоко'])
+			expect(findMatchingIrritantComponents(['молоко'], 'Сухе молоко')).toEqual([
+				'молоко',
+			])
+			expect(findMatchingIrritantComponents(['Барбарис'], 'рис')).toEqual([])
+		})
+
+		it('splits Ukrainian conjunctions without treating them as ingredients', () => {
+			expect(findMatchingIrritantComponents(['та'], 'молоко та овес')).toEqual([])
+			expect(findMatchingIrritantComponents(['або'], 'молоко або овес')).toEqual([])
+		})
+
+		it('preserves comma and English and splitting', () => {
+			expect(
+				findMatchingIrritantComponents(
+					['milk', 'oats', 'and'],
+					'milk and oats',
+				),
+			).toEqual(['milk', 'oats'])
+			expect(
+				findMatchingIrritantComponents(['milk', 'oats'], 'milk, oats'),
+			).toEqual(['milk', 'oats'])
+		})
 	})
 
 	it('trims and returns a complete annotation', () => {

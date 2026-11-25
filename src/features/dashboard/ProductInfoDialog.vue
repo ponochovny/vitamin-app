@@ -429,6 +429,7 @@ async function saveNutrition() {
 								inputmode="decimal"
 								placeholder="Наприклад, 6,7"
 								:required="nutritionInputsRequired"
+								:disabled="nutritionSuggestionPending"
 							/>
 						</label>
 						<fieldset class="space-y-3 rounded-xl border border-border p-3">

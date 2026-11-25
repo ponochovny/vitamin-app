@@ -58,6 +58,10 @@ function normalizeComponent(value: string) {
 		.trim()
 }
 
+function containsNormalizedPhrase(text: string, phrase: string) {
+	return ` ${text} `.includes(` ${phrase} `)
+}
+
 export function findMatchingIrritantComponents(
 	composition: readonly string[] | null | undefined,
 	irritantIngredient: string | null | undefined,
@@ -65,22 +69,15 @@ export function findMatchingIrritantComponents(
 	if (!composition?.length || !irritantIngredient) return []
 
 	const irritantTerms = irritantIngredient
-		.split(/[,;+\n]|\b(?:and|та|або)\b/i)
+		.split(/[,;+\n]|(?<![\p{L}\p{N}_])(?:and|та|або)(?![\p{L}\p{N}_])/iu)
 		.map(normalizeComponent)
 		.filter(Boolean)
 
 	return composition.filter((component) => {
 		const normalizedComponent = normalizeComponent(component)
 		return irritantTerms.some((term) =>
-			normalizedComponent === term
-			|| (
-				normalizedComponent.length >= term.length
-				&& normalizedComponent.includes(term)
-			)
-			|| (
-				term.length >= normalizedComponent.length
-				&& term.includes(normalizedComponent)
-			),
+			containsNormalizedPhrase(normalizedComponent, term)
+			|| containsNormalizedPhrase(term, normalizedComponent),
 		)
 	})
 }

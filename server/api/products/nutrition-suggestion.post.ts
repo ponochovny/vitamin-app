@@ -1,12 +1,6 @@
 import { serverSupabaseUser } from '#supabase/server'
 import { requestGeminiWithRetry } from '../../utils/geminiRequest'
-
-interface NutritionSuggestionRequest {
-	name?: unknown
-	quantity?: unknown
-	unit?: unknown
-	composition?: unknown
-}
+import { nutritionSuggestionRequestSchema } from '../../utils/nutritionSuggestionRequest'
 
 interface GeminiResponse {
 	candidates?: Array<{
@@ -21,7 +15,6 @@ interface GeminiResponse {
 	}
 }
 
-const units = new Set(['g', 'ml', 'piece'])
 const FALLBACK_MODEL = 'gemini-3.5-flash-lite'
 
 function parseJsonObject(text: string) {
@@ -41,28 +34,16 @@ export default defineEventHandler(async (event) => {
 		})
 	}
 
-	const body = await readBody<NutritionSuggestionRequest>(event)
-	const name = typeof body.name === 'string' ? body.name.trim() : ''
-	const quantity = Number(body.quantity)
-	const unit = typeof body.unit === 'string' ? body.unit : ''
-	const composition = Array.isArray(body.composition)
-		? body.composition
-				.filter((item): item is string => typeof item === 'string')
-				.join(', ')
-		: ''
-
-	if (!name || name.length > 120) {
+	const body = await readBody<unknown>(event)
+	const parsedBody = nutritionSuggestionRequestSchema.safeParse(body)
+	if (!parsedBody.success) {
 		throw createError({
 			statusCode: 400,
-			statusMessage: 'Вкажіть назву продукту.',
+			statusMessage: 'Перевірте назву, кількість, одиницю та склад продукту.',
 		})
 	}
-	if (!Number.isFinite(quantity) || quantity <= 0 || !units.has(unit)) {
-		throw createError({
-			statusCode: 400,
-			statusMessage: 'Перевірте кількість і одиницю продукту.',
-		})
-	}
+	const { name, quantity, unit } = parsedBody.data
+	const composition = (parsedBody.data.composition ?? []).join(', ')
 
 	const config = useRuntimeConfig(event)
 	const apiKey = String(config.googleGeminiApiKey || '')
@@ -139,7 +120,22 @@ export default defineEventHandler(async (event) => {
 		})
 	}
 
-	const payload = (await response.json()) as GeminiResponse
+	let payload: GeminiResponse = {}
+	let payloadDecoded = false
+	try {
+		const decodedPayload: unknown = await response.json()
+		if (
+			decodedPayload
+			&& typeof decodedPayload === 'object'
+			&& !Array.isArray(decodedPayload)
+		) {
+			payload = decodedPayload as GeminiResponse
+			payloadDecoded = true
+		}
+	} catch {
+		payloadDecoded = false
+	}
+
 	if (!response.ok) {
 		const providerStatus = payload.error?.status
 		console.error('[nutrition-suggestion] Gemini request failed', {
@@ -160,6 +156,14 @@ export default defineEventHandler(async (event) => {
 		throw createError({
 			statusCode: 502,
 			statusMessage,
+		})
+	}
+
+	if (!payloadDecoded) {
+		throw createError({
+			statusCode: 502,
+			statusMessage:
+				'ШІ повернув незрозумілу відповідь. Можна ввести значення вручну.',
 		})
 	}
 

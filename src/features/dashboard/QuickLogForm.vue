@@ -95,6 +95,7 @@ const newProductCarbs = shallowRef('')
 const newProductComposition = shallowRef('')
 const nutritionSuggestionPending = shallowRef(false)
 const nutritionSuggestionNotice = shallowRef('')
+const nutritionSuggestionUnit = shallowRef<ProductUnit | null>(null)
 const nutritionSuggestionRequestId = shallowRef(0)
 const nutritionDetails = useTemplateRef<HTMLDetailsElement>('nutritionDetails')
 const newProductRequestId = shallowRef('')
@@ -193,15 +194,19 @@ watch(
 )
 
 watch(
-	() => [
-		newProductName.value.trim(),
-		newProductUnit.value,
-		newProductComposition.value,
-	],
+	() => [newProductName.value.trim(), newProductComposition.value],
 	() => {
 		nutritionSuggestionNotice.value = ''
 	},
 )
+
+watch(newProductUnit, (_unit, previousUnit) => {
+	if (nutritionSuggestionUnit.value === previousUnit) {
+		clearNewProductNutrition()
+	}
+	nutritionSuggestionUnit.value = null
+	nutritionSuggestionNotice.value = ''
+})
 
 watch(matchingProducts, (matches) => {
 	if (
@@ -252,13 +257,11 @@ function selectProduct(id: string, recentQuantity?: number) {
 async function startNewProduct() {
 	nutritionSuggestionRequestId.value += 1
 	nutritionSuggestionPending.value = false
+	nutritionSuggestionUnit.value = null
 	newProductName.value = productSearch.value.trim()
 	newProductUnit.value = 'piece'
 	newProductQuantity.value = 1
-	newProductCalories.value = ''
-	newProductProteins.value = ''
-	newProductFats.value = ''
-	newProductCarbs.value = ''
+	clearNewProductNutrition()
 	newProductComposition.value = ''
 	nutritionSuggestionNotice.value = ''
 	formError.value = ''
@@ -305,6 +308,13 @@ function formatNumber(value: number) {
 	)
 }
 
+function clearNewProductNutrition() {
+	newProductCalories.value = ''
+	newProductProteins.value = ''
+	newProductFats.value = ''
+	newProductCarbs.value = ''
+}
+
 async function suggestNewProductNutrition() {
 	const name = newProductName.value.trim()
 	const compositionInput = newProductComposition.value
@@ -327,6 +337,12 @@ async function suggestNewProductNutrition() {
 	nutritionSuggestionRequestId.value = requestId
 	const requestedUnit = newProductUnit.value
 	const requestedQuantity = newProductReferenceQuantity.value
+	const requestedNutrition = {
+		calories: newProductCalories.value,
+		proteins: newProductProteins.value,
+		fats: newProductFats.value,
+		carbs: newProductCarbs.value,
+	}
 	nutritionSuggestionPending.value = true
 	formError.value = ''
 	nutritionSuggestionNotice.value = ''
@@ -346,7 +362,11 @@ async function suggestNewProductNutrition() {
 			newProductName.value.trim() !== name ||
 			newProductUnit.value !== requestedUnit ||
 			newProductReferenceQuantity.value !== requestedQuantity ||
-			newProductComposition.value !== compositionInput
+			newProductComposition.value !== compositionInput ||
+			newProductCalories.value !== requestedNutrition.calories ||
+			newProductProteins.value !== requestedNutrition.proteins ||
+			newProductFats.value !== requestedNutrition.fats ||
+			newProductCarbs.value !== requestedNutrition.carbs
 		) {
 			formError.value =
 				'Дані змінилися під час запиту. Повторіть запит, щоб отримати актуальну оцінку.'
@@ -356,6 +376,7 @@ async function suggestNewProductNutrition() {
 		newProductProteins.value = String(suggestion.proteins)
 		newProductFats.value = String(suggestion.fats)
 		newProductCarbs.value = String(suggestion.carbs)
+		nutritionSuggestionUnit.value = requestedUnit
 		nutritionSuggestionNotice.value = getNutritionSuggestionNotice(
 			suggestion.confidence,
 		)
@@ -392,7 +413,10 @@ function submitFood() {
 }
 
 function submitNewProduct() {
-	if (nutritionSuggestionPending.value) return
+	if (nutritionSuggestionPending.value) {
+		nutritionSuggestionRequestId.value += 1
+		nutritionSuggestionPending.value = false
+	}
 	const name = newProductName.value.trim()
 	const selectedQuantity = Number(newProductQuantity.value)
 	if (!name || !Number.isFinite(selectedQuantity) || selectedQuantity <= 0) {
