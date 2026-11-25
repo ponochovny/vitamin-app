@@ -12,6 +12,80 @@ export interface FoodNutrition {
 	carbs: number
 }
 
+export const FOOD_MACRO_KEYS = ['proteins', 'fats', 'carbs'] as const
+
+export type FoodMacroKey = (typeof FOOD_MACRO_KEYS)[number]
+export type FoodMacroValues = Pick<FoodNutrition, FoodMacroKey>
+
+export interface FoodSuggestionProduct {
+	id: string
+	name: string
+	quantity: number
+	chars: FoodNutrition & {
+		unit?: 'g' | 'ml' | 'piece'
+		nutritionKnown?: boolean
+	}
+}
+
+export interface FoodSuggestion {
+	product: FoodSuggestionProduct
+	matches: Array<{ key: FoodMacroKey; label: string; amount: number }>
+}
+
+export function getFoodSuggestions(
+	products: readonly FoodSuggestionProduct[],
+	consumed: FoodMacroValues,
+	targets: FoodMacroValues,
+	limit = 3,
+): FoodSuggestion[] {
+	const remaining = FOOD_MACRO_KEYS.flatMap((key) => {
+		const target = Number(targets[key])
+		const current = Number(consumed[key])
+		const amount = target - current
+		if (!Number.isFinite(target) || !Number.isFinite(current) || amount <= 0) return []
+		return [{
+			key,
+			amount,
+			label: { proteins: 'Білки', fats: 'Жири', carbs: 'Вуглеводи' }[key],
+		}]
+	})
+	if (!remaining.length || !Number.isFinite(limit) || limit <= 0) return []
+
+	const ranked = products.flatMap((product) => {
+		if (
+			product.chars.nutritionKnown === false
+			|| !Number.isFinite(product.quantity)
+			|| product.quantity <= 0
+		) {
+			return []
+		}
+
+		const matches = remaining.flatMap(({ key, amount, label }) => {
+			const macroAmount = Number(product.chars[key])
+			return Number.isFinite(macroAmount) && macroAmount > 0
+				? [{ key, amount: macroAmount, label, score: Math.min(macroAmount / amount, 1) }]
+				: []
+		})
+		if (!matches.length) return []
+
+		return [{
+			suggestion: {
+				product,
+				matches: matches.map(({ key, amount, label }) => ({ key, amount, label })),
+			},
+			score: matches.reduce((total, match) => total + match.score, 0),
+		}]
+	})
+
+	return ranked
+		.sort((a, b) =>
+			b.score - a.score
+			|| a.suggestion.product.name.localeCompare(b.suggestion.product.name, 'uk-UA')
+		)
+		.slice(0, Math.floor(limit))
+		.map(({ suggestion }) => suggestion)
+}
+
 export function getApproximatePortionQuantities(
 	referenceQuantity: number,
 	unit: 'g' | 'ml' | 'piece',

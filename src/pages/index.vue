@@ -462,6 +462,96 @@
 				</div>
 			</section>
 
+			<section
+				v-if="hasRemainingMacroGoals"
+				aria-labelledby="food-suggestions-heading"
+				class="space-y-3"
+			>
+				<div>
+					<h2 id="food-suggestions-heading" class="text-lg font-bold">
+						Що підходить до цілей, що залишилися
+					</h2>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Зліва — найбільш відповідні продукти з твого списку. КБЖУ наведено за вказану кількість.
+					</p>
+				</div>
+				<p
+					v-if="nutrition.nutritionUnknown"
+					role="status"
+					class="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground"
+				>
+					Є записи без даних харчової цінності — підказки приховано, щоб не спотворювати залишок.
+				</p>
+				<ul
+					v-else-if="foodSuggestions.length"
+					tabindex="0"
+					aria-label="Рекомендовані продукти у горизонтальному списку"
+					class="m-0 flex snap-x snap-mandatory list-none gap-3 overflow-x-auto p-0 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+				>
+					<li
+						v-for="suggestion in foodSuggestions"
+						:key="suggestion.product.id"
+						class="w-64 shrink-0 snap-start sm:w-72"
+					>
+						<article class="h-full rounded-2xl border border-border bg-card p-4">
+							<h3 class="truncate font-bold">
+								{{ suggestion.product.name }}
+							</h3>
+							<p class="mt-1 text-xs text-muted-foreground">
+								За {{ formatNumber(suggestion.product.quantity) }}
+								{{ unitLabel(suggestion.product.chars.unit) }}
+							</p>
+							<dl class="mt-3 grid grid-cols-2 gap-2">
+								<div class="rounded-xl bg-muted p-2.5">
+									<dt class="text-xs text-muted-foreground">Калорії</dt>
+									<dd class="mt-1 font-semibold">
+										{{ formatNumber(suggestion.product.chars.calories) }} ккал
+									</dd>
+								</div>
+								<div class="rounded-xl bg-muted p-2.5">
+									<dt class="text-xs text-muted-foreground">Білки</dt>
+									<dd class="mt-1 font-semibold">
+										{{ formatNumber(suggestion.product.chars.proteins) }} г
+									</dd>
+								</div>
+								<div class="rounded-xl bg-muted p-2.5">
+									<dt class="text-xs text-muted-foreground">Жири</dt>
+									<dd class="mt-1 font-semibold">
+										{{ formatNumber(suggestion.product.chars.fats) }} г
+									</dd>
+								</div>
+								<div class="rounded-xl bg-muted p-2.5">
+									<dt class="text-xs text-muted-foreground">Вуглеводи</dt>
+									<dd class="mt-1 font-semibold">
+										{{ formatNumber(suggestion.product.chars.carbs) }} г
+									</dd>
+								</div>
+							</dl>
+							<ul
+								class="m-0 mt-3 flex list-none flex-wrap gap-1.5 p-0"
+								aria-label="Відповідає цілям"
+							>
+								<li
+									v-for="match in suggestion.matches"
+									:key="match.key"
+								>
+									<span class="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+										{{ match.label }}
+									</span>
+								</li>
+							</ul>
+						</article>
+					</li>
+				</ul>
+				<p
+					v-else
+					role="status"
+					class="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground"
+				>
+					У списку поки немає продуктів із відомими значеннями БЖУ для цілей, що залишилися.
+				</p>
+			</section>
+
 			<div class="grid gap-5">
 				<section
 					class="overflow-hidden rounded-3xl border border-border/80 bg-card"
@@ -580,7 +670,11 @@ import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
 import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
-import { getRecentFoods } from '~/src/features/dashboard/diary'
+import {
+	FOOD_MACRO_KEYS,
+	getFoodSuggestions,
+	getRecentFoods,
+} from '~/src/features/dashboard/diary'
 import type {
 	FoodProductInfo,
 	LoggedFoodInfo,
@@ -781,6 +875,12 @@ const guestGoalPreview = [
 
 const nutrition = computed(() =>
 	summarizeFoodNutrition(foodLogs.value),
+)
+const hasRemainingMacroGoals = computed(() =>
+	FOOD_MACRO_KEYS.some((key) => targets.value[key] > nutrition.value[key])
+)
+const foodSuggestions = computed(() =>
+	getFoodSuggestions(products.value, nutrition.value, targets.value)
 )
 const pureWater = computed(() =>
 	drinkLogs.value

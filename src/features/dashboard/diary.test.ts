@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	filterProducts,
 	getApproximatePortionQuantities,
+	getFoodSuggestions,
 	getRecentFoods,
 	parseOptionalNutrition,
 } from './diary'
@@ -54,6 +55,61 @@ describe('diary helpers', () => {
 		expect(getApproximatePortionQuantities(250, 'ml')).toEqual([125, 250, 375])
 		expect(getApproximatePortionQuantities(100, 'piece')).toEqual([1, 2])
 		expect(getApproximatePortionQuantities(0, 'g')).toEqual([])
+	})
+
+	it('ranks known products by the remaining macros and ignores completed goals', () => {
+		const suggestions = getFoodSuggestions([
+			{
+				id: 'rice',
+				name: 'Рис',
+				quantity: 100,
+				chars: { calories: 130, proteins: 2.7, fats: 0.3, carbs: 28 },
+			},
+			{
+				id: 'eggs',
+				name: 'Яйця',
+				quantity: 1,
+				chars: { calories: 70, proteins: 6, fats: 5, carbs: 0.6 },
+			},
+			{
+				id: 'unknown',
+				name: 'Невідомий продукт',
+				quantity: 100,
+				chars: {
+					calories: 0,
+					proteins: 100,
+					fats: 100,
+					carbs: 100,
+					nutritionKnown: false,
+				},
+			},
+		], {
+			proteins: 90,
+			fats: 70,
+			carbs: 200,
+		}, {
+			proteins: 100,
+			fats: 70,
+			carbs: 250,
+		})
+
+		expect(suggestions.map(({ product }) => product.id)).toEqual(['rice', 'eggs'])
+		expect(suggestions[0].matches.map(({ key }) => key)).toEqual([
+			'proteins',
+			'carbs',
+		])
+	})
+
+	it('returns no suggestions when every macro goal is reached', () => {
+		expect(getFoodSuggestions([], {
+			proteins: 100,
+			fats: 70,
+			carbs: 250,
+		}, {
+			proteins: 100,
+			fats: 70,
+			carbs: 250,
+		})).toEqual([])
 	})
 
 	it('accepts nutrition only when all values are provided or all are omitted', () => {
