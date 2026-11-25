@@ -41,8 +41,8 @@ export default defineNuxtConfig({
 		redirectOptions: {
 			login: '/signin',
 			callback: '/auth/callback',
-			include: undefined,
-			exclude: ['/', '/signin', '/auth/callback', '/history', '/about'],
+			include: ['/account', '/products/**'],
+			exclude: ['/', '/signin', '/auth/callback', '/history', '/about', '/preview'],
 			cookieRedirect: false,
 		},
 	},
@@ -50,6 +50,7 @@ export default defineNuxtConfig({
 		'/': { prerender: false, swr: 300 },
 		'/about': { prerender: false, swr: 3600 },
 		'/signin': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+		'/account': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
 		'/history': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
 		'/auth/callback': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
 		'/products/**': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },

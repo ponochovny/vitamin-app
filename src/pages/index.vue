@@ -952,6 +952,13 @@ type WellbeingPeriodKey = 'morning' | 'day' | 'evening'
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
+definePageMeta({
+	middleware: () => {
+		const session = useSupabaseSession()
+		if (!session.value) return navigateTo('/preview')
+	},
+})
+
 const userId = computed(() => user.value?.id ?? null)
 const loading = shallowRef(true)
 const refreshing = shallowRef(false)

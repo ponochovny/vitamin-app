@@ -99,7 +99,7 @@ const canonicalUrl = computed(
 	() => `${siteUrl.value}${route.path === '/' ? '/' : route.path}`,
 )
 const isPrivateRoute = computed(() =>
-	['/signin', '/history', '/products/add', '/auth/callback'].includes(
+	['/signin', '/account', '/history', '/products/add', '/auth/callback'].includes(
 		route.path,
 	),
 )
