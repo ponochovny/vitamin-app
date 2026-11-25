@@ -477,7 +477,7 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 <template>
 	<section class="rounded-[1.5rem] border border-border/80 bg-card px-5 py-4 shadow-[0_12px_40px_rgba(32,52,44,0.05)] sm:px-6">
 		<details>
-			<summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+			<summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
 				<span>
 					<span class="block font-bold">Нагадування про їжу та настрій</span>
 					<span class="mt-1 block text-sm text-muted-foreground">
@@ -499,12 +499,15 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 
 				<fieldset class="space-y-3">
 					<legend class="mb-2 text-sm font-semibold">Час нагадувань</legend>
-					<div class="grid gap-2 sm:grid-cols-2">
+					<div
+						role="group"
+						aria-label="Режим нагадувань"
+						class="grid gap-2 sm:grid-cols-2"
+					>
 						<button
 							type="button"
-							role="radio"
-							:aria-checked="scheduleMode === 'preset'"
-							class="rounded-xl border px-3 py-3 text-left text-sm"
+							:aria-pressed="scheduleMode === 'preset'"
+							class="min-h-11 rounded-xl border px-3 py-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 							:class="scheduleMode === 'preset' ? 'border-primary bg-primary/5' : 'border-border'"
 							@click="choosePreset"
 						>
@@ -513,9 +516,8 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 						</button>
 						<button
 							type="button"
-							role="radio"
-							:aria-checked="scheduleMode === 'custom'"
-							class="rounded-xl border px-3 py-3 text-left text-sm"
+							:aria-pressed="scheduleMode === 'custom'"
+							class="min-h-11 rounded-xl border px-3 py-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 							:class="scheduleMode === 'custom' ? 'border-primary bg-primary/5' : 'border-border'"
 							@click="chooseCustom"
 						>
@@ -534,7 +536,7 @@ function decodeApplicationServerKey(value: string): Uint8Array {
 							:min="period === 'morning' ? '00:00' : period === 'day' ? '12:00' : '18:00'"
 							:max="period === 'morning' ? '11:59' : period === 'day' ? '17:59' : '23:59'"
 							:disabled="scheduleMode === 'preset'"
-							class="h-11 w-full rounded-xl border border-input bg-background px-3 disabled:opacity-70"
+							class="h-11 w-full rounded-xl border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-70"
 						>
 					</label>
 				</div>

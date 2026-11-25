@@ -1,8 +1,8 @@
 <template>
-	<div>
-		<h2>App Product</h2>
+	<main>
+		<h1 class="mb-4 text-2xl font-bold">Додати продукт</h1>
 		<AddProduct />
-	</div>
+	</main>
 </template>
 
 <script lang="ts" setup>

@@ -7,6 +7,7 @@ const addProduct = async (
 	{
 		name,
 		quantity,
+		irritant,
 		chars: {
 			calories,
 			fats,
@@ -36,6 +37,8 @@ const addProduct = async (
 				},
 			},
 			user_id: userId,
+			irritant_ingredient: irritant?.ingredient ?? null,
+			irritant_reason: irritant?.reason ?? null,
 		} as never,
 	])
 }

@@ -75,7 +75,7 @@ function save() {
 				v-for="preset in presets"
 				:key="preset.id"
 				type="button"
-				class="rounded-lg border p-3 text-left"
+				class="min-h-11 rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				:class="selectedPreset === preset.id ? 'border-primary bg-muted' : ''"
 				:aria-pressed="selectedPreset === preset.id"
 				@click="choosePreset(preset.id)"
@@ -85,7 +85,7 @@ function save() {
 			</button>
 			<button
 				type="button"
-				class="rounded-lg border p-3 text-left font-semibold"
+				class="min-h-11 rounded-lg border p-3 text-left font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 				:class="selectedPreset === 'custom' ? 'border-primary bg-muted' : ''"
 				:aria-pressed="selectedPreset === 'custom'"
 				@click="selectedPreset = 'custom'"

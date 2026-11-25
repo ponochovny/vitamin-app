@@ -12,6 +12,11 @@ import {
 	type LoggedFoodInfo,
 } from './foodProduct'
 import { parseDecimalInput } from '~/src/shared/numbers'
+import {
+	IRRITANT_INGREDIENT_MAX_LENGTH,
+	IRRITANT_REASON_MAX_LENGTH,
+	parseProductIrritant,
+} from '~/src/entities/product/irritant'
 
 const props = defineProps<{
 	open: boolean
@@ -31,6 +36,9 @@ const pending = shallowRef(false)
 const editError = shallowRef('')
 const editSuccess = shallowRef('')
 const nameDraft = shallowRef('')
+const irritantMarked = shallowRef(false)
+const irritantIngredientDraft = shallowRef('')
+const irritantReasonDraft = shallowRef('')
 const draft = reactive<Record<'calories' | 'proteins' | 'fats' | 'carbs', string>>({
 	calories: '',
 	proteins: '',
@@ -56,6 +64,9 @@ function formatNumber(value: number) {
 function startEditing() {
 	if (!props.product || !user.value) return
 	nameDraft.value = props.product.name
+	irritantMarked.value = Boolean(props.product.irritant_ingredient)
+	irritantIngredientDraft.value = props.product.irritant_ingredient ?? ''
+	irritantReasonDraft.value = props.product.irritant_reason ?? ''
 	for (const { key } of nutrientLabels) {
 		draft[key] =
 			props.product.chars.nutritionKnown === false
@@ -109,6 +120,18 @@ async function saveNutrition() {
 		return
 	}
 
+	const irritantResult = parseProductIrritant(
+		irritantMarked.value ? irritantIngredientDraft.value : '',
+		irritantMarked.value ? irritantReasonDraft.value : '',
+	)
+	if (!irritantResult.valid) {
+		editError.value =
+			irritantResult.reason === 'incomplete'
+				? 'Укажіть інгредієнт і причину помітки.'
+				: 'Перевірте довжину полів помітки про подразник.'
+		return
+	}
+
 	pending.value = true
 	editError.value = ''
 	editSuccess.value = ''
@@ -119,10 +142,15 @@ async function saveNutrition() {
 	}
 	const { data, error } = await supabase
 		.from('products')
-		.update({ name, chars })
+		.update({
+			name,
+			chars,
+			irritant_ingredient: irritantResult.value?.ingredient ?? null,
+			irritant_reason: irritantResult.value?.reason ?? null,
+		})
 		.eq('id', product.id)
 		.eq('user_id', userId)
-		.select('id, name, quantity, chars')
+		.select('id, name, quantity, chars, irritant_ingredient, irritant_reason')
 		.maybeSingle()
 	pending.value = false
 
@@ -136,10 +164,12 @@ async function saveNutrition() {
 		name: data.name,
 		quantity: Number(data.quantity),
 		chars: { ...chars, ...data.chars },
+		irritant_ingredient: data.irritant_ingredient,
+		irritant_reason: data.irritant_reason,
 	})
 	editing.value = false
 	editSuccess.value =
-		'Назву й харчову цінність збережено. Записи цього продукту в журналі перераховано.'
+		'Зміни збережено. Записи цього продукту в журналі перераховано.'
 }
 </script>
 
@@ -155,6 +185,29 @@ async function saveNutrition() {
 			</DialogHeader>
 
 			<div v-if="product" class="space-y-5">
+				<section
+					v-if="product.irritant_ingredient && product.irritant_reason"
+					aria-labelledby="irritant-note-heading"
+					class="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950"
+				>
+					<h3 id="irritant-note-heading" class="font-semibold">
+						Можливий подразник
+					</h3>
+					<p class="mt-1 text-sm">
+						Особиста помітка, а не медична оцінка.
+					</p>
+					<dl class="mt-3 space-y-2 text-sm">
+						<div>
+							<dt class="font-semibold">Інгредієнт</dt>
+							<dd>{{ product.irritant_ingredient }}</dd>
+						</div>
+						<div>
+							<dt class="font-semibold">Чому позначено</dt>
+							<dd>{{ product.irritant_reason }}</dd>
+						</div>
+					</dl>
+				</section>
+
 				<section>
 					<div class="flex items-center justify-between gap-3">
 						<h3 class="text-sm font-semibold">Харчова цінність</h3>
@@ -193,6 +246,43 @@ async function saveNutrition() {
 								required
 							/>
 						</label>
+						<fieldset class="space-y-3 rounded-xl border border-border p-3">
+							<legend class="px-1 text-sm font-semibold">
+								Особиста помітка
+							</legend>
+							<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+								<input
+									v-model="irritantMarked"
+									type="checkbox"
+									class="size-4 accent-primary"
+								/>
+								Позначити можливим подразником
+							</label>
+							<p class="text-sm text-muted-foreground">
+								Помітку бачите лише ви. Вона не є медичним висновком.
+							</p>
+							<template v-if="irritantMarked">
+								<label class="block space-y-1 text-sm font-medium">
+									<span>Інгредієнт</span>
+									<Input
+										v-model="irritantIngredientDraft"
+										type="text"
+										:maxlength="IRRITANT_INGREDIENT_MAX_LENGTH"
+										required
+									/>
+								</label>
+								<label class="block space-y-1 text-sm font-medium">
+									<span>Чому позначено</span>
+									<textarea
+										v-model="irritantReasonDraft"
+										class="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+										:maxlength="IRRITANT_REASON_MAX_LENGTH"
+										rows="3"
+										required
+									/>
+								</label>
+							</template>
+						</fieldset>
 						<p v-if="editError" role="alert" class="text-sm text-destructive">
 							{{ editError }}
 						</p>

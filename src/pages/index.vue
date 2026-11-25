@@ -41,6 +41,7 @@
 					:key="quickLogFormVersion"
 					:products="products"
 					:recent-foods="recentFoods"
+					:drink-types="drinkTypes"
 					:pending="savePending"
 					@food="logFood"
 					@create-food="createAndLogFood"
@@ -73,6 +74,11 @@
 			:logged="selectedFoodRecord?.logged ?? null"
 			@update:open="productInfoOpen = $event"
 			@saved="updateProductInfo"
+		/>
+		<DrinkIrritantDialog
+			:open="drinkInfoOpen"
+			:drink="selectedDrinkTypeInfo"
+			@update:open="drinkInfoOpen = $event"
 		/>
 		<Dialog v-model:open="moodDialogOpen">
 			<DialogContent class="max-h-[85dvh] overflow-y-auto sm:max-w-md">
@@ -134,7 +140,7 @@
 			>
 				<div class="flex items-start justify-between gap-4">
 					<div>
-						<p class="text-sm font-medium text-white/70">
+						<p class="text-sm font-medium text-white/85">
 							Сьогодні, 21 листопада
 						</p>
 						<h1
@@ -156,7 +162,7 @@
 						class="rounded-2xl bg-white/10 p-3.5 sm:p-4"
 					>
 						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-medium text-white/70">
+							<p class="text-xs font-medium text-white/95">
 								{{ preview.label }}
 							</p>
 							<p class="text-xs font-bold text-secondary">
@@ -185,8 +191,12 @@
 						<p class="mt-2 text-sm leading-6 text-white/75">
 							Увійдіть, щоб побачити реальні цілі та прогрес вашого дня.
 						</p>
-						<NuxtLink to="/signin" class="mt-4 inline-flex">
+						<NuxtLink
+							to="/signin"
+							class="mt-4 inline-flex min-h-11 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+						>
 							<Button
+								as="span"
 								class="h-11 rounded-full bg-secondary px-5 text-secondary-foreground hover:bg-secondary"
 								>Увійти</Button
 							>
@@ -203,7 +213,7 @@
 			>
 				<div class="flex items-start justify-between gap-4">
 					<div>
-						<p class="text-sm font-medium text-white/70">{{ todayLabel }}</p>
+						<p class="text-sm font-medium text-white/85">{{ todayLabel }}</p>
 						<h1
 							id="goal-heading"
 							class="mt-1 text-2xl font-bold tracking-[-0.03em] sm:text-[2rem]"
@@ -213,7 +223,7 @@
 					</div>
 					<button
 						type="button"
-						class="flex h-11 min-w-11 items-center justify-center rounded-full bg-secondary px-4 text-sm font-bold text-secondary-foreground"
+						class="flex h-11 min-h-11 min-w-11 items-center justify-center rounded-full bg-secondary px-4 text-sm font-bold text-secondary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
 						@click="openTargets"
 					>
 						Цілі
@@ -265,7 +275,7 @@
 							</span>
 						</div>
 						<div>
-							<p class="text-sm font-semibold text-white/75">Калорії</p>
+							<p class="text-sm font-semibold text-white/95">Калорії</p>
 							<p class="mt-2 text-base font-bold leading-tight">
 								{{
 									nutrition.nutritionUnknown
@@ -273,7 +283,7 @@
 										: `з ${formatNumber(targets.calories)} ккал`
 								}}
 							</p>
-							<p class="mt-1 text-xs text-white/65">
+							<p class="mt-1 text-xs text-white/95">
 								<span v-if="nutrition.nutritionUnknown">
 									Є записи без даних
 								</span>
@@ -304,7 +314,7 @@
 									:style="{ backgroundColor: macro.accent }"
 									aria-hidden="true"
 								/>
-								<p class="text-xs font-semibold text-white/85">
+								<p class="text-xs font-semibold text-white/95">
 									{{ macro.label }}
 								</p>
 							</div>
@@ -354,7 +364,7 @@
 							<p class="mt-2 text-xs font-bold">
 								з {{ formatNumber(targets[macro.key]) }} г
 							</p>
-							<p class="mt-1 text-[11px] text-white/65">
+							<p class="mt-1 text-[11px] text-white/95">
 								<template v-if="nutrition.nutritionUnknown">
 									Частково
 								</template>
@@ -387,7 +397,7 @@
 					<p
 						id="food-preview-summary"
 						role="status"
-						class="text-sm text-white/90"
+						class="text-sm text-white/95"
 					>
 						Після
 						{{ formatNumber(selectedFoodSuggestion.product.quantity) }}
@@ -478,7 +488,7 @@
 					<article class="goal-tile rounded-2xl bg-white/10 p-4">
 						<div class="flex items-start justify-between gap-3">
 							<div>
-								<p class="text-sm font-semibold text-white/75">
+								<p class="text-sm font-semibold text-white/95">
 									Самопочуття протягом дня
 								</p>
 								<p class="mt-1 text-lg font-bold">Як ти почуваєшся?</p>
@@ -531,7 +541,7 @@
 									:class="
 										checkIn.mood
 											? 'text-[#246B4F]'
-											: 'text-white/65'
+											: 'text-white'
 									"
 								>
 									{{ checkIn.mood?.label ?? 'Позначити' }}
@@ -584,7 +594,7 @@
 							<h3 class="truncate font-bold">
 								<button
 									type="button"
-									class="rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+									class="min-h-11 rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 									:aria-pressed="
 										selectedFoodSuggestionId === suggestion.product.id
 									"
@@ -593,6 +603,23 @@
 									{{ suggestion.product.name }}
 								</button>
 							</h3>
+							<div
+								v-if="suggestion.product.irritant_ingredient"
+								class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"
+							>
+								<span class="font-semibold text-amber-900">
+									Можливий подразник:
+									{{ suggestion.product.irritant_ingredient }}
+								</span>
+								<button
+									type="button"
+									class="min-h-11 rounded-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+									:aria-label="`Пояснення помітки про подразник у продукті ${suggestion.product.name}: ${suggestion.product.irritant_ingredient}`"
+									@click="openProductInfoForProduct(suggestion.product)"
+								>
+									Деталі
+								</button>
+							</div>
 							<p class="mt-1 text-xs text-muted-foreground">
 								За {{ formatNumber(suggestion.product.quantity) }}
 								{{ unitLabel(suggestion.product.chars.unit) }}
@@ -672,7 +699,7 @@
 						</div>
 						<button
 							type="button"
-							class="h-10 rounded-full border border-border px-4 text-sm font-bold"
+							class="h-11 min-h-11 rounded-full border border-border px-4 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 							@click="openQuickLog"
 						>
 							Додати
@@ -694,7 +721,11 @@
 								v-if="record.kind === 'food' && record.product"
 								type="button"
 								class="flex w-full cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
-								:aria-label="`Довідка про продукт ${record.title}`"
+								:aria-label="
+									record.product.irritant_ingredient
+										? `У продукті ${record.title} позначено можливий подразник ${record.product.irritant_ingredient}. Відкрити пояснення.`
+										: `Довідка про продукт ${record.title}`
+								"
 								@click="openProductInfo(record)"
 							>
 								<span
@@ -706,6 +737,14 @@
 									<span class="block truncate font-semibold">{{
 										record.title
 									}}</span>
+									<span
+										v-if="record.product.irritant_ingredient"
+										class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-950"
+									>
+										<span aria-hidden="true">!</span>
+										Можливий подразник:
+										{{ record.product.irritant_ingredient }}
+									</span>
 									<span
 										class="mt-0.5 block truncate text-sm text-muted-foreground"
 										>{{ record.detail }}</span
@@ -734,10 +773,27 @@
 								>
 								<div class="min-w-0 flex-1">
 									<p class="truncate font-semibold">{{ record.title }}</p>
+									<span
+										v-if="record.drinkType?.irritant_ingredient"
+										class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-950"
+									>
+										<span aria-hidden="true">!</span>
+										Можливий подразник:
+										{{ record.drinkType.irritant_ingredient }}
+									</span>
 									<p class="mt-0.5 truncate text-sm text-muted-foreground">
 										{{ record.detail }}
 									</p>
 								</div>
+								<button
+									v-if="record.drinkType?.irritant_ingredient"
+									type="button"
+									class="min-h-11 shrink-0 rounded-sm px-2 text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+									:aria-label="`Пояснення помітки про подразник у напої ${record.title}: ${record.drinkType.irritant_ingredient}`"
+									@click="openDrinkIrritantInfo(record.drinkType)"
+								>
+									Пояснення
+								</button>
 								<div class="shrink-0 text-right">
 									<time
 										:datetime="record.createdAt"
@@ -772,6 +828,7 @@ import { formatLocalHour, getLocalDate } from '~/src/shared/date'
 import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vue'
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
 import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
+import DrinkIrritantDialog from '~/src/features/dashboard/DrinkIrritantDialog.vue'
 import {
 	FOOD_MACRO_KEYS,
 	getFoodSuggestions,
@@ -781,6 +838,12 @@ import type {
 	FoodProductInfo,
 	LoggedFoodInfo,
 } from '~/src/features/dashboard/foodProduct'
+import type {
+	DrinkLogSubmission,
+	DrinkTypeProfile,
+} from '~/src/features/dashboard/drinkType'
+import { normalizeDrinkTypeName } from '~/src/features/dashboard/drinkType'
+import { parseProductIrritant } from '~/src/entities/product/irritant'
 import {
 	Dialog,
 	DialogContent,
@@ -802,6 +865,8 @@ interface Product {
 	name: string
 	quantity: number
 	idempotencyKey?: string
+	irritant_ingredient?: string | null
+	irritant_reason?: string | null
 	chars: {
 		calories: number
 		proteins: number
@@ -830,6 +895,9 @@ interface DrinkLog {
 	kind: string
 	volume_ml: number
 	created_at: string
+	drink_type_id: string | null
+	drink_name: string | null
+	drink_type: DrinkTypeProfile | null
 }
 
 interface RecentFood {
@@ -847,6 +915,7 @@ interface DiaryRecord {
 	nutritionKnown: boolean
 	createdAt: string
 	product: FoodProductInfo | null
+	drinkType: DrinkTypeProfile | null
 	logged: LoggedFoodInfo | null
 }
 
@@ -879,6 +948,7 @@ interface DashboardSnapshot {
 	recentFoods: RecentFood[]
 	foodLogs: FoodLog[]
 	drinkLogs: DrinkLog[]
+	drinkTypes: DrinkTypeProfile[]
 	wellbeingEntries: WellbeingEntry[]
 	targets: DailyTargets
 	targetPreset: TargetPreset
@@ -900,7 +970,9 @@ let quickLogFormSessionId = 0
 const targetsOpen = shallowRef(false)
 const moodDialogOpen = shallowRef(false)
 const productInfoOpen = shallowRef(false)
+const drinkInfoOpen = shallowRef(false)
 const selectedFoodRecord = shallowRef<DiaryRecord | null>(null)
+const selectedDrinkTypeInfo = shallowRef<DrinkTypeProfile | null>(null)
 const selectedMoodPeriod = shallowRef<WellbeingPeriodKey | null>(null)
 const error = shallowRef('')
 const notice = shallowRef('')
@@ -909,6 +981,7 @@ const recentFoods = shallowRef<RecentFood[]>([])
 const foodLogs = shallowRef<FoodLog[]>([])
 const selectedFoodSuggestionId = shallowRef<string | null>(null)
 const drinkLogs = shallowRef<DrinkLog[]>([])
+const drinkTypes = shallowRef<DrinkTypeProfile[]>([])
 const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
 const wellbeingPending = shallowRef(false)
 const targets = shallowRef<DailyTargets>({ ...DEFAULT_TARGETS })
@@ -1026,6 +1099,7 @@ const records = computed<DiaryRecord[]>(() =>
 			nutritionKnown: entry.products?.chars.nutritionKnown !== false,
 			createdAt: entry.created_at,
 			product: entry.products,
+			drinkType: null,
 			logged: {
 				quantity: Number(entry.quantity),
 				nutrition: {
@@ -1039,13 +1113,14 @@ const records = computed<DiaryRecord[]>(() =>
 		...drinkLogs.value.map((drink) => ({
 			id: drink.id,
 			kind: 'drink' as const,
-			title: drinkKindLabel(drink.kind),
+			title: drink.drink_name ?? drinkKindLabel(drink.kind),
 			detail: `${formatVolume(Number(drink.volume_ml))} мл`,
 			calories: 0,
 			volumeMl: Number(drink.volume_ml),
 			nutritionKnown: true,
 			createdAt: drink.created_at,
 			product: null,
+			drinkType: drink.drink_type,
 			logged: null,
 		})),
 	].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
@@ -1108,6 +1183,12 @@ function openProductInfo(record: DiaryRecord) {
 	productInfoOpen.value = true
 }
 
+function openDrinkIrritantInfo(drink: DrinkTypeProfile) {
+	if (!drink.irritant_ingredient || !drink.irritant_reason) return
+	selectedDrinkTypeInfo.value = drink
+	drinkInfoOpen.value = true
+}
+
 function openProductInfoForProduct(product: Product) {
 	selectedFoodRecord.value = {
 		id: '',
@@ -1119,6 +1200,7 @@ function openProductInfoForProduct(product: Product) {
 		nutritionKnown: product.chars.nutritionKnown !== false,
 		createdAt: '',
 		product,
+		drinkType: null,
 		logged: null,
 	}
 	productInfoOpen.value = true
@@ -1217,6 +1299,7 @@ async function loadDashboard(id: string, force = false) {
 
 	const results = await Promise.all([
 		loadProducts(id),
+		loadDrinkTypes(id),
 		loadRecentFoods(id, generation),
 		loadDayEntries(id),
 		loadTargets(id),
@@ -1246,6 +1329,7 @@ function restoreDashboardSnapshot(cached: DashboardSnapshot) {
 	recentFoods.value = cached.recentFoods ?? []
 	foodLogs.value = cached.foodLogs
 	drinkLogs.value = cached.drinkLogs
+	drinkTypes.value = cached.drinkTypes ?? []
 	wellbeingEntries.value = cached.wellbeingEntries ?? []
 	targets.value = { ...cached.targets }
 	targetPreset.value = cached.targetPreset
@@ -1260,6 +1344,7 @@ function cacheDashboardSnapshot(id: string) {
 			recentFoods: [...recentFoods.value],
 			foodLogs: [...foodLogs.value],
 			drinkLogs: [...drinkLogs.value],
+			drinkTypes: [...drinkTypes.value],
 			wellbeingEntries: [...wellbeingEntries.value],
 			targets: { ...targets.value },
 			targetPreset: targetPreset.value,
@@ -1270,7 +1355,7 @@ function cacheDashboardSnapshot(id: string) {
 async function loadProducts(id: string): Promise<string | null> {
 	let { data, error: requestError } = await supabase
 		.from('products')
-		.select('id, name, quantity, chars, idempotency_key')
+		.select('id, name, quantity, chars, idempotency_key, irritant_ingredient, irritant_reason')
 		.eq('user_id', id)
 		.order('name')
 	if (requestError) return 'Не вдалося завантажити список продуктів.'
@@ -1283,7 +1368,7 @@ async function loadProducts(id: string): Promise<string | null> {
 
 		const refreshed = await supabase
 			.from('products')
-			.select('id, name, quantity, chars, idempotency_key')
+			.select('id, name, quantity, chars, idempotency_key, irritant_ingredient, irritant_reason')
 			.eq('user_id', id)
 			.order('name')
 		data = refreshed.data
@@ -1296,8 +1381,21 @@ async function loadProducts(id: string): Promise<string | null> {
 		name: product.name,
 		quantity: Number(product.quantity),
 		idempotencyKey: product.idempotency_key ?? undefined,
+		irritant_ingredient: product.irritant_ingredient,
+		irritant_reason: product.irritant_reason,
 		chars: product.chars as Product['chars'],
 	}))
+	return null
+}
+
+async function loadDrinkTypes(id: string): Promise<string | null> {
+	const { data, error: requestError } = await supabase
+		.from('user_drink_types')
+		.select('id, kind, name, irritant_ingredient, irritant_reason')
+		.eq('user_id', id)
+		.order('name')
+	if (requestError) return 'Не вдалося завантажити види напоїв.'
+	drinkTypes.value = (data ?? []) as DrinkTypeProfile[]
 	return null
 }
 
@@ -1342,14 +1440,14 @@ async function loadDayEntries(id: string): Promise<string | null> {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(id, name, quantity, chars)',
+				'id, product_id, quantity, calories, proteins, fats, carbs, created_at, products(id, name, quantity, chars, irritant_ingredient, irritant_reason)',
 			)
 			.eq('user_id', id)
 			.eq('date', today)
 			.order('created_at', { ascending: false }),
 		supabase
 			.from('drinks')
-			.select('id, kind, volume_ml, created_at')
+			.select('id, kind, volume_ml, created_at, drink_type_id, drink_name, drink_type:user_drink_types(id, kind, name, irritant_ingredient, irritant_reason)')
 			.eq('user_id', id)
 			.eq('entry_date', today)
 			.order('created_at', { ascending: false }),
@@ -1573,32 +1671,129 @@ async function createAndLogFood(entry: NewFoodEntry) {
 	await refreshDay(id)
 }
 
-async function logDrink(entry: {
-	kind: 'water' | 'coffee' | 'tea' | 'other'
-	volumeMl: number
-}) {
+async function logDrink(entry: DrinkLogSubmission) {
 	const id = userId.value
 	if (!id || savePending.value) return
 
 	savePending.value = true
 	error.value = ''
 	notice.value = ''
+	if (!Number.isFinite(entry.volumeMl) || entry.volumeMl <= 0) {
+		savePending.value = false
+		error.value = 'Вкажіть об’єм напою, більший за нуль.'
+		return
+	}
+
+	let drinkTypeId: string | null = null
+	let drinkName: string | null = null
+	if (entry.kind === 'water') {
+		if (entry.drinkTypeId || entry.name || entry.irritant) {
+			savePending.value = false
+			error.value = 'Воду не можна позначити як можливий подразник.'
+			return
+		}
+	} else {
+		const normalizedName = normalizeDrinkTypeName(entry.name ?? '')
+		const annotation = parseProductIrritant(
+			entry.irritant?.ingredient ?? '',
+			entry.irritant?.reason ?? '',
+		)
+		if (!normalizedName.name || !annotation.valid) {
+			savePending.value = false
+			error.value = 'Перевірте назву напою та особисту помітку.'
+			return
+		}
+
+		let savedType: DrinkTypeProfile
+		if (entry.drinkTypeId) {
+			const selectedType = drinkTypes.value.find(
+				(type) => type.id === entry.drinkTypeId && type.kind === entry.kind,
+			)
+			if (!selectedType) {
+				savePending.value = false
+				error.value = 'Цей вид напою вже недоступний. Оновіть сторінку та спробуйте ще раз.'
+				return
+			}
+			const { data, error: typeError } = await supabase
+				.from('user_drink_types')
+				.update({
+					irritant_ingredient: annotation.value?.ingredient ?? null,
+					irritant_reason: annotation.value?.reason ?? null,
+				})
+				.eq('id', selectedType.id)
+				.eq('user_id', id)
+				.select('id, kind, name, irritant_ingredient, irritant_reason')
+				.maybeSingle()
+			if (typeError || !data) {
+				savePending.value = false
+				error.value = 'Не вдалося зберегти помітку для напою.'
+				return
+			}
+			savedType = data as DrinkTypeProfile
+		} else {
+			if (
+				drinkTypes.value.some(
+					(type) =>
+						normalizeDrinkTypeName(type.name).nameKey === normalizedName.nameKey,
+				)
+			) {
+				savePending.value = false
+				error.value = 'Цей вид уже є у списку. Оберіть його та змініть помітку.'
+				return
+			}
+			const { data, error: typeError } = await supabase
+				.from('user_drink_types')
+				.insert({
+					user_id: id,
+					kind: entry.kind,
+					name: normalizedName.name,
+					irritant_ingredient: annotation.value?.ingredient ?? null,
+					irritant_reason: annotation.value?.reason ?? null,
+				})
+				.select('id, kind, name, irritant_ingredient, irritant_reason')
+				.single()
+			if (typeError || !data) {
+				savePending.value = false
+				error.value = 'Не вдалося зберегти вид напою. Перевірте з’єднання та спробуйте ще раз.'
+				return
+			}
+			savedType = data as DrinkTypeProfile
+		}
+
+		drinkTypes.value = [
+			...drinkTypes.value.filter((type) => type.id !== savedType.id),
+			savedType,
+		]
+		drinkLogs.value = drinkLogs.value.map((drink) =>
+			drink.drink_type_id === savedType.id
+				? { ...drink, drink_type: savedType }
+				: drink,
+		)
+		drinkTypeId = savedType.id
+		drinkName = savedType.name
+		invalidateDashboardCache(id)
+		invalidateHistoryCache(id)
+	}
+
 	const { error: saveError } = await supabase.from('drinks').insert({
 		user_id: id,
 		kind: entry.kind,
+		drink_type_id: drinkTypeId,
+		drink_name: drinkName,
 		volume_ml: entry.volumeMl,
 		recorded_at: new Date().toISOString(),
 		entry_date: getLocalDate(),
 	})
 	savePending.value = false
 	if (saveError) {
-		error.value =
-			'Не вдалося записати напій. Перевір з’єднання та спробуй ще раз.'
+		error.value = drinkTypeId
+			? 'Вид напою та його помітку збережено, але запис не додано до щоденника.'
+			: 'Не вдалося записати напій. Перевір з’єднання та спробуй ще раз.'
 		return
 	}
 
 	invalidateHistoryCache(id)
-	notice.value = `${drinkKindLabel(entry.kind)} додано до щоденника.`
+	notice.value = `${drinkName ?? drinkKindLabel(entry.kind)} додано до щоденника.`
 	await refreshDay(id)
 }
 
@@ -1882,14 +2077,14 @@ const seedProducts = [
 }
 
 .mood-checkin--empty {
-	border-color: rgb(255 255 255 / 14%);
-	background: rgb(255 255 255 / 7%);
+	border-color: rgb(255 255 255 / 38%);
+	background: #184834;
 	color: white;
 }
 
 .mood-checkin--empty:hover {
-	border-color: rgb(255 255 255 / 32%);
-	background: rgb(255 255 255 / 12%);
+	border-color: rgb(255 255 255 / 56%);
+	background: #20583f;
 }
 
 .goal-tile {

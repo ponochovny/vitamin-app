@@ -75,6 +75,14 @@
 			@update:open="productInfoOpen = $event"
 			@saved="updateProductInfo"
 		/>
+		<DrinkIrritantDialog
+			:open="drinkInfoOpen"
+			:drink="selectedDrinkTypeInfo"
+			:editable="true"
+			:pending="entryPending"
+			@update:open="drinkInfoOpen = $event"
+			@save="saveDrinkIrritant"
+		/>
 
 		<section
 			v-if="loading"
@@ -167,8 +175,12 @@
 					<p class="mt-2 text-sm leading-6 text-white/75">
 						Увійдіть, щоб побачити реальні записи та позначки за датами.
 					</p>
-					<NuxtLink to="/signin" class="mt-4 inline-flex">
+					<NuxtLink
+						to="/signin"
+						class="mt-4 inline-flex min-h-11 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+					>
 						<Button
+							as="span"
 							class="h-11 rounded-full bg-secondary px-5 text-secondary-foreground hover:bg-secondary"
 							>Увійти до журналу</Button
 						>
@@ -194,8 +206,11 @@
 				<p class="mt-2 text-sm text-muted-foreground">
 					Перша позначка або запис їжі з’явиться тут.
 				</p>
-				<NuxtLink to="/" class="mt-5 inline-block">
-					<Button class="h-11 rounded-full px-5">Додати сьогодні</Button>
+				<NuxtLink
+					to="/"
+					class="mt-5 inline-flex min-h-11 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+				>
+					<Button as="span" class="h-11 rounded-full px-5">Додати сьогодні</Button>
 				</NuxtLink>
 			</div>
 
@@ -206,7 +221,7 @@
 			>
 				<button
 					type="button"
-					class="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left sm:px-6"
+					class="flex min-h-11 w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-6"
 					:aria-expanded="expandedDates.has(day.date)"
 					:aria-controls="`history-day-${day.date}`"
 					@click="toggleDay(day.date)"
@@ -248,7 +263,11 @@
 								v-if="entry.kind === 'food' && entry.product"
 								type="button"
 								class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
-								:aria-label="`Довідка про продукт ${entry.title}`"
+								:aria-label="
+									entry.product.irritant_ingredient
+										? `У продукті ${entry.title} позначено можливий подразник ${entry.product.irritant_ingredient}. Відкрити пояснення.`
+										: `Довідка про продукт ${entry.title}`
+								"
 								@click="openProductInfo(entry)"
 							>
 								<span
@@ -260,6 +279,14 @@
 									<span class="block truncate font-semibold">{{
 										entry.title
 									}}</span>
+									<span
+										v-if="entry.product.irritant_ingredient"
+										class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-950"
+									>
+										<span aria-hidden="true">!</span>
+										Можливий подразник:
+										{{ entry.product.irritant_ingredient }}
+									</span>
 									<span
 										class="mt-0.5 block truncate text-sm text-muted-foreground"
 										>{{ entry.detail }} · {{ entry.amount }}</span
@@ -274,6 +301,14 @@
 								>
 								<div class="min-w-0 flex-1">
 									<p class="truncate font-semibold">{{ entry.title }}</p>
+									<span
+										v-if="entry.drinkType?.irritant_ingredient"
+										class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-950"
+									>
+										<span aria-hidden="true">!</span>
+										Можливий подразник:
+										{{ entry.drinkType.irritant_ingredient }}
+									</span>
 									<p class="mt-0.5 truncate text-sm text-muted-foreground">
 										{{ entry.detail }} · {{ entry.amount }}
 									</p>
@@ -287,9 +322,26 @@
 								</p>
 								<div class="mt-1 flex justify-end gap-3">
 									<button
+										v-if="
+											entry.kind === 'drink'
+											&& isMarkableDrinkKind(entry.drinkKind ?? '')
+										"
+										type="button"
+										class="min-h-11 rounded-sm px-2 text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+										:disabled="entryPending"
+										:aria-label="
+											entry.drinkType?.irritant_ingredient
+												? `Редагувати помітку для напою ${entry.title}`
+												: `Додати помітку для напою ${entry.title}`
+										"
+										@click="openDrinkEditor(entry)"
+									>
+										Помітка
+									</button>
+									<button
 										v-if="entry.editable"
 										type="button"
-										class="text-xs font-semibold text-primary underline-offset-2 hover:underline"
+										class="min-h-11 rounded-sm px-2 text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 										:disabled="entryPending"
 										@click="openEdit(entry)"
 									>
@@ -297,7 +349,7 @@
 									</button>
 									<button
 										type="button"
-										class="text-xs font-semibold text-destructive underline-offset-2 hover:underline"
+										class="min-h-11 rounded-sm px-2 text-xs font-semibold text-destructive underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 										:disabled="entryPending"
 										@click="deleteEntry(entry)"
 									>
@@ -368,10 +420,21 @@ import {
 	DialogTitle,
 } from '~/src/shared/ui/dialog'
 import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
+import DrinkIrritantDialog from '~/src/features/dashboard/DrinkIrritantDialog.vue'
 import type {
 	FoodProductInfo,
 	LoggedFoodInfo,
 } from '~/src/features/dashboard/foodProduct'
+import {
+	isMarkableDrinkKind,
+	normalizeDrinkTypeName,
+} from '~/src/features/dashboard/drinkType'
+import type {
+	DrinkKind,
+	DrinkTypeDetails,
+	DrinkTypeProfile,
+} from '~/src/features/dashboard/drinkType'
+import type { ProductIrritant } from '~/src/entities/product/irritant'
 
 type PeriodKey = 'morning' | 'day' | 'evening'
 
@@ -401,6 +464,10 @@ interface HistoryEntry {
 	quantity?: number
 	volumeMl?: number
 	product?: FoodProductInfo | null
+	drinkKind?: string
+	drinkTypeId?: string | null
+	drinkName?: string | null
+	drinkType?: DrinkTypeProfile | null
 	logged?: LoggedFoodInfo | null
 }
 
@@ -418,10 +485,13 @@ interface MoodEntry {
 
 interface DrinkLog {
 	id: string
-	kind: string
+	kind: DrinkKind
 	volume_ml: number
 	recorded_at: string
 	entry_date: string | null
+	drink_type_id: string | null
+	drink_name: string | null
+	drink_type: DrinkTypeProfile | null
 }
 
 interface HistorySnapshot {
@@ -451,8 +521,11 @@ const error = shallowRef('')
 const entryPending = shallowRef(false)
 const editDialogOpen = shallowRef(false)
 const productInfoOpen = shallowRef(false)
+const drinkInfoOpen = shallowRef(false)
 const editingEntry = shallowRef<HistoryEntry | null>(null)
 const selectedFoodEntry = shallowRef<HistoryEntry | null>(null)
+const selectedDrinkEntry = shallowRef<HistoryEntry | null>(null)
+const selectedDrinkTypeInfo = shallowRef<DrinkTypeDetails | null>(null)
 const editQuantity = shallowRef<number | ''>('')
 const editVolume = shallowRef<number | ''>('')
 const editError = shallowRef('')
@@ -562,12 +635,16 @@ const days = computed<HistoryDay[]>(() => {
 		entries.push({
 			id: drink.id,
 			kind: 'drink',
-			title: drinkKindLabel(drink.kind),
+			title: drink.drink_name ?? drinkKindLabel(drink.kind),
 			detail: `${formatVolume(Number(drink.volume_ml))} мл`,
 			amount: `${formatVolume(Number(drink.volume_ml))} мл`,
 			createdAt: drink.recorded_at,
 			editable: true,
 			volumeMl: Number(drink.volume_ml),
+			drinkKind: drink.kind,
+			drinkTypeId: drink.drink_type_id,
+			drinkName: drink.drink_name,
+			drinkType: drink.drink_type,
 		})
 		grouped.set(date, entries)
 	}
@@ -620,6 +697,9 @@ watch(
 		editQuantity.value = ''
 		editVolume.value = ''
 		editError.value = ''
+		drinkInfoOpen.value = false
+		selectedDrinkEntry.value = null
+		selectedDrinkTypeInfo.value = null
 		if (!id) {
 			loading.value = false
 			return
@@ -650,13 +730,13 @@ async function loadHistory(id: string, force = false) {
 		supabase
 			.from('logs')
 			.select(
-				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(id, name, quantity, chars)',
+				'id, product_id, date, quantity, calories, proteins, fats, carbs, vitamins, created_at, products(id, name, quantity, chars, irritant_ingredient, irritant_reason)',
 			)
 			.eq('user_id', id)
 			.order('date', { ascending: false }),
 		supabase
 			.from('drinks')
-			.select('id, kind, volume_ml, recorded_at, entry_date')
+			.select('id, kind, volume_ml, recorded_at, entry_date, drink_type_id, drink_name, drink_type:user_drink_types(id, kind, name, irritant_ingredient, irritant_reason)')
 			.eq('user_id', id)
 			.order('recorded_at', { ascending: false }),
 		supabase
@@ -733,6 +813,155 @@ function openProductInfo(entry: HistoryEntry) {
 	if (entry.kind !== 'food' || !entry.product) return
 	selectedFoodEntry.value = entry
 	productInfoOpen.value = true
+}
+
+function openDrinkEditor(entry: HistoryEntry) {
+	const kind = entry.drinkKind
+	if (entry.kind !== 'drink' || !kind || !isMarkableDrinkKind(kind)) return
+	error.value = ''
+	selectedDrinkEntry.value = entry
+	selectedDrinkTypeInfo.value = entry.drinkType ?? {
+		kind,
+		name: entry.drinkName ?? drinkKindLabel(kind),
+		irritant_ingredient: null,
+		irritant_reason: null,
+	}
+	drinkInfoOpen.value = true
+}
+
+async function saveDrinkIrritant(annotation: ProductIrritant | null) {
+	const id = userId.value
+	const entry = selectedDrinkEntry.value
+	const kind = entry?.drinkKind
+	if (
+		!id
+		|| !entry
+		|| !kind
+		|| !isMarkableDrinkKind(kind)
+		|| entryPending.value
+	) {
+		return
+	}
+
+	if (!annotation && !entry.drinkTypeId) {
+		drinkInfoOpen.value = false
+		selectedDrinkEntry.value = null
+		selectedDrinkTypeInfo.value = null
+		return
+	}
+
+	entryPending.value = true
+	error.value = ''
+	let savedType: DrinkTypeProfile
+	if (entry.drinkTypeId) {
+		const { data, error: updateError } = await supabase
+			.from('user_drink_types')
+			.update({
+				irritant_ingredient: annotation?.ingredient ?? null,
+				irritant_reason: annotation?.reason ?? null,
+			})
+			.eq('id', entry.drinkTypeId)
+			.eq('user_id', id)
+			.eq('kind', kind)
+			.select('id, kind, name, irritant_ingredient, irritant_reason')
+			.maybeSingle()
+		if (updateError || !data) {
+			entryPending.value = false
+			error.value = 'Не вдалося зберегти помітку для напою.'
+			return
+		}
+		savedType = data as DrinkTypeProfile
+	} else {
+		const drinkName = entry.drinkName?.trim() || null
+		const normalizedName = normalizeDrinkTypeName(
+			drinkName ?? drinkKindLabel(kind),
+		)
+		const { data: existingType, error: lookupError } = await supabase
+			.from('user_drink_types')
+			.select('id, kind, name, irritant_ingredient, irritant_reason')
+			.eq('user_id', id)
+			.eq('name_key', normalizedName.nameKey)
+			.maybeSingle()
+		if (lookupError) {
+			entryPending.value = false
+			error.value = 'Не вдалося перевірити збережені види напоїв.'
+			return
+		}
+		if (existingType && existingType.kind !== kind) {
+			entryPending.value = false
+			error.value = 'Такий вид уже збережено в іншій категорії напоїв.'
+			return
+		}
+
+		if (existingType) {
+			const { data, error: updateError } = await supabase
+				.from('user_drink_types')
+				.update({
+					irritant_ingredient: annotation?.ingredient ?? null,
+					irritant_reason: annotation?.reason ?? null,
+				})
+				.eq('id', existingType.id)
+				.eq('user_id', id)
+				.select('id, kind, name, irritant_ingredient, irritant_reason')
+				.maybeSingle()
+			if (updateError || !data) {
+				entryPending.value = false
+				error.value = 'Не вдалося зберегти помітку для напою.'
+				return
+			}
+			savedType = data as DrinkTypeProfile
+		} else {
+			const { data, error: insertError } = await supabase
+				.from('user_drink_types')
+				.insert({
+					user_id: id,
+					kind,
+					name: normalizedName.name,
+					irritant_ingredient: annotation?.ingredient ?? null,
+					irritant_reason: annotation?.reason ?? null,
+				})
+				.select('id, kind, name, irritant_ingredient, irritant_reason')
+				.single()
+			if (insertError || !data) {
+				entryPending.value = false
+				error.value = 'Не вдалося зберегти вид напою. Спробуйте ще раз.'
+				return
+			}
+			savedType = data as DrinkTypeProfile
+		}
+
+		let unlinkedDrinks = supabase
+			.from('drinks')
+			.update({ drink_type_id: savedType.id, drink_name: savedType.name })
+			.eq('user_id', id)
+			.eq('kind', kind)
+			.is('drink_type_id', null)
+		if (drinkName) {
+			unlinkedDrinks = unlinkedDrinks.eq('drink_name', drinkName)
+		} else {
+			unlinkedDrinks = unlinkedDrinks.is('drink_name', null)
+		}
+		const { error: linkError } = await unlinkedDrinks
+		if (linkError) {
+			invalidateDashboardCache(id)
+			entryPending.value = false
+			error.value =
+				'Помітку збережено, але записи напою не вдалося пов’язати з нею. Спробуйте ще раз.'
+			return
+		}
+	}
+
+	entryPending.value = false
+	drinkInfoOpen.value = false
+	selectedDrinkEntry.value = null
+	selectedDrinkTypeInfo.value = null
+	invalidateDashboardCache(id)
+	if (userId.value !== id) return
+	await loadHistory(id, true)
+	if (userId.value !== id) return
+	toast.success(
+		annotation ? 'Помітку напою збережено.' : 'Помітку напою видалено.',
+	)
 }
 
 function updateProductInfo(updatedProduct: FoodProductInfo) {

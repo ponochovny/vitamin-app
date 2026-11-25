@@ -14,6 +14,8 @@ export interface FoodProductInfo {
 		unit?: 'g' | 'ml' | 'piece'
 		nutritionKnown?: boolean
 	}
+	irritant_ingredient?: string | null
+	irritant_reason?: string | null
 }
 
 export interface LoggedFoodInfo {

@@ -5,6 +5,16 @@ import {
 	getApproximatePortionQuantities,
 	parseOptionalNutrition,
 } from './diary'
+import {
+	normalizeDrinkTypeName,
+	type DrinkKind,
+	type DrinkTypeProfile,
+} from './drinkType'
+import {
+	IRRITANT_INGREDIENT_MAX_LENGTH,
+	IRRITANT_REASON_MAX_LENGTH,
+	parseProductIrritant,
+} from '~/src/entities/product/irritant'
 
 interface Product {
 	id: string
@@ -19,6 +29,8 @@ interface Product {
 		unit?: 'g' | 'ml' | 'piece'
 		nutritionKnown?: boolean
 	}
+	irritant_ingredient?: string | null
+	irritant_reason?: string | null
 }
 
 type ProductUnit = 'g' | 'ml' | 'piece'
@@ -26,6 +38,7 @@ type ProductUnit = 'g' | 'ml' | 'piece'
 const props = defineProps<{
 	products: Product[]
 	recentFoods: Array<{ productId: string; quantity: number }>
+	drinkTypes: DrinkTypeProfile[]
 	pending: boolean
 }>()
 
@@ -39,7 +52,13 @@ const emit = defineEmits<{
 		nutrition: { calories: number; proteins: number; fats: number; carbs: number } | null
 		idempotencyKey: string
 	}]
-	drink: [entry: { kind: 'water' | 'coffee' | 'tea' | 'other'; volumeMl: number }]
+	drink: [entry: {
+		kind: DrinkKind
+		volumeMl: number
+		drinkTypeId: string | null
+		name: string | null
+		irritant: { ingredient: string; reason: string } | null
+	}]
 	editProduct: [product: Product]
 }>()
 
@@ -60,6 +79,12 @@ const formError = shallowRef('')
 const newProductForm = useTemplateRef<HTMLFormElement>('newProductForm')
 const addProductButtonContainer = useTemplateRef<HTMLDivElement>('addProductButtonContainer')
 const drinkKind = shallowRef<'water' | 'coffee' | 'tea' | 'other'>('water')
+const drinkTypeId = shallowRef('')
+const drinkTypeName = shallowRef('')
+const irritantMarked = shallowRef(false)
+const irritantIngredient = shallowRef('')
+const irritantReason = shallowRef('')
+const drinkError = shallowRef('')
 const volumePreset = shallowRef('300')
 const volumeMl = shallowRef<number | ''>(300)
 
@@ -109,6 +134,14 @@ const drinkLabel = computed(() => ({
 	tea: 'чай',
 	other: 'напій',
 })[drinkKind.value])
+const drinkTypesForKind = computed(() =>
+	props.drinkTypes.filter((type) => type.kind === drinkKind.value),
+)
+const selectedDrinkType = computed(() =>
+	props.drinkTypes.find(
+		(type) => type.id === drinkTypeId.value && type.kind === drinkKind.value,
+	),
+)
 
 watch(
 	() => props.products,
@@ -127,6 +160,13 @@ watch(matchingProducts, (matches) => {
 		productId.value = ''
 		quantity.value = ''
 	}
+})
+
+watch(selectedDrinkType, (type) => {
+	irritantMarked.value = Boolean(type?.irritant_ingredient)
+	irritantIngredient.value = type?.irritant_ingredient ?? ''
+	irritantReason.value = type?.irritant_reason ?? ''
+	drinkError.value = ''
 })
 
 function unitLabel(product: Product) {
@@ -167,6 +207,20 @@ async function cancelNewProduct() {
 
 function applyVolumePreset() {
 	if (volumePreset.value !== 'custom') volumeMl.value = Number(volumePreset.value)
+}
+
+function resetDrinkType() {
+	drinkTypeId.value = ''
+	drinkTypeName.value =
+		drinkKind.value === 'coffee'
+			? 'Кава'
+			: drinkKind.value === 'tea'
+				? 'Чай'
+				: ''
+	irritantMarked.value = false
+	irritantIngredient.value = ''
+	irritantReason.value = ''
+	drinkError.value = ''
 }
 
 function formatNumber(value: number) {
@@ -218,8 +272,59 @@ function submitNewProduct() {
 
 function submitDrink() {
 	const selectedVolume = Number(volumeMl.value)
-	if (!Number.isFinite(selectedVolume) || selectedVolume <= 0) return
-	emit('drink', { kind: drinkKind.value, volumeMl: selectedVolume })
+	if (!Number.isFinite(selectedVolume) || selectedVolume <= 0) {
+		drinkError.value = 'Вкажіть об’єм, більший за нуль.'
+		return
+	}
+
+	if (drinkKind.value === 'water') {
+		emit('drink', {
+			kind: 'water',
+			volumeMl: selectedVolume,
+			drinkTypeId: null,
+			name: null,
+			irritant: null,
+		})
+		return
+	}
+
+	const normalizedName = normalizeDrinkTypeName(
+		selectedDrinkType.value?.name ?? drinkTypeName.value,
+	)
+	if (!normalizedName.name) {
+		drinkError.value = 'Вкажіть назву виду напою.'
+		return
+	}
+	if (
+		!selectedDrinkType.value
+		&& props.drinkTypes.some(
+			(type) => normalizeDrinkTypeName(type.name).nameKey === normalizedName.nameKey,
+		)
+	) {
+		drinkError.value = 'Цей вид уже є у списку. Оберіть його вище.'
+		return
+	}
+
+	const irritantResult = parseProductIrritant(
+		irritantMarked.value ? irritantIngredient.value : '',
+		irritantMarked.value ? irritantReason.value : '',
+	)
+	if (!irritantResult.valid) {
+		drinkError.value =
+			irritantResult.reason === 'incomplete'
+				? 'Укажіть інгредієнт і причину помітки.'
+				: 'Перевірте довжину полів помітки про подразник.'
+		return
+	}
+
+	drinkError.value = ''
+	emit('drink', {
+		kind: drinkKind.value,
+		volumeMl: selectedVolume,
+		drinkTypeId: selectedDrinkType.value?.id ?? null,
+		name: normalizedName.name,
+		irritant: irritantResult.value,
+	})
 }
 </script>
 
@@ -346,17 +451,36 @@ function submitDrink() {
 			<div v-if="recentProducts.length" class="space-y-2">
 				<p class="text-sm font-medium">Нещодавно записували</p>
 				<div class="flex flex-wrap gap-2">
-					<button
+					<div
 						v-for="entry in recentProducts"
 						:key="entry.product.id"
-						type="button"
-						class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-						:class="productId === entry.product.id ? 'border-primary bg-muted' : ''"
-						:aria-pressed="productId === entry.product.id"
-						@click="selectProduct(entry.product.id, entry.quantity)"
+						class="flex items-center gap-1"
 					>
-						{{ entry.product.name }} · {{ formatNumber(entry.quantity) }} {{ unitLabel(entry.product) }}
-					</button>
+						<button
+							type="button"
+							class="min-h-11 rounded-full border border-border px-3 py-2 text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+							:class="productId === entry.product.id ? 'border-primary bg-muted' : ''"
+							:aria-pressed="productId === entry.product.id"
+							@click="selectProduct(entry.product.id, entry.quantity)"
+						>
+							{{ entry.product.name }} · {{ formatNumber(entry.quantity) }} {{ unitLabel(entry.product) }}
+							<span
+								v-if="entry.product.irritant_ingredient"
+								class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950"
+							>
+								Можливий подразник
+							</span>
+						</button>
+						<button
+							v-if="entry.product.irritant_ingredient"
+							type="button"
+							class="min-h-11 min-w-11 rounded-full border border-amber-300 text-sm font-bold text-amber-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+							:aria-label="`Пояснення помітки про подразник у продукті ${entry.product.name}: ${entry.product.irritant_ingredient}`"
+							@click="emit('editProduct', entry.product)"
+						>
+							<span aria-hidden="true">i</span>
+						</button>
+					</div>
 				</div>
 			</div>
 			<label class="block space-y-1 text-sm font-medium">
@@ -364,17 +488,36 @@ function submitDrink() {
 				<Input v-model="productSearch" type="search" placeholder="Наприклад, яблуко" />
 			</label>
 			<div class="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-1" role="group" aria-label="Продукти">
-				<button
+				<div
 					v-for="product in matchingProducts"
 					:key="product.id"
-					type="button"
-					:aria-pressed="productId === product.id"
-					class="min-h-11 w-full rounded px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-					:class="productId === product.id ? 'bg-muted font-semibold' : ''"
-					@click="selectProduct(product.id)"
+					class="flex gap-1"
 				>
-					{{ product.name }}
-				</button>
+					<button
+						type="button"
+						:aria-pressed="productId === product.id"
+						class="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+						:class="productId === product.id ? 'bg-muted font-semibold' : ''"
+						@click="selectProduct(product.id)"
+					>
+						<span class="truncate">{{ product.name }}</span>
+						<span
+							v-if="product.irritant_ingredient"
+							class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950"
+						>
+							Можливий подразник
+						</span>
+					</button>
+					<button
+						v-if="product.irritant_ingredient"
+						type="button"
+						class="min-h-11 min-w-11 rounded border border-amber-300 text-sm font-bold text-amber-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+						:aria-label="`Пояснення помітки про подразник у продукті ${product.name}: ${product.irritant_ingredient}`"
+						@click="emit('editProduct', product)"
+					>
+						<span aria-hidden="true">i</span>
+					</button>
+				</div>
 				<p v-if="!matchingProducts.length" role="status" class="px-3 py-2 text-sm text-muted-foreground">
 					Нічого не знайдено.
 				</p>
@@ -408,7 +551,7 @@ function submitDrink() {
 				:disabled="pending"
 				@click="emit('editProduct', selectedProduct)"
 			>
-				Редагувати харчову цінність
+				Довідка та редагування продукту
 			</Button>
 			<label class="block space-y-1 text-sm font-medium">
 				<span>Кількість, {{ selectedProduct ? unitLabel(selectedProduct) : 'г' }}</span>
@@ -455,6 +598,7 @@ function submitDrink() {
 				<select
 					v-model="drinkKind"
 					class="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+					@change="resetDrinkType"
 				>
 					<option value="water">Вода</option>
 					<option value="coffee">Кава</option>
@@ -462,6 +606,69 @@ function submitDrink() {
 					<option value="other">Інший напій</option>
 				</select>
 			</label>
+			<template v-if="drinkKind !== 'water'">
+				<label class="block space-y-1 text-sm font-medium">
+					<span>Вид напою</span>
+					<select
+						v-model="drinkTypeId"
+						class="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+					>
+						<option value="">Додати новий вид</option>
+						<option
+							v-for="type in drinkTypesForKind"
+							:key="type.id"
+							:value="type.id"
+						>
+							{{ type.name }}
+						</option>
+					</select>
+				</label>
+				<label v-if="!drinkTypeId" class="block space-y-1 text-sm font-medium">
+					<span>Назва виду</span>
+					<Input
+						v-model="drinkTypeName"
+						type="text"
+						maxlength="120"
+						placeholder="Наприклад, зелений чай або молоко"
+						required
+					/>
+				</label>
+				<fieldset class="space-y-3 rounded-xl border border-border p-3">
+					<legend class="px-1 text-sm font-semibold">Особиста помітка</legend>
+					<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+						<input
+							v-model="irritantMarked"
+							type="checkbox"
+							class="size-4 accent-primary"
+						/>
+						Позначити можливим подразником
+					</label>
+					<p class="text-sm text-muted-foreground">
+						Помітка стосується цього виду напою. Вона не є медичним висновком.
+					</p>
+					<template v-if="irritantMarked">
+						<label class="block space-y-1 text-sm font-medium">
+							<span>Інгредієнт або компонент</span>
+							<Input
+								v-model="irritantIngredient"
+								type="text"
+								:maxlength="IRRITANT_INGREDIENT_MAX_LENGTH"
+								required
+							/>
+						</label>
+						<label class="block space-y-1 text-sm font-medium">
+							<span>Чому позначено</span>
+							<textarea
+								v-model="irritantReason"
+								class="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+								:maxlength="IRRITANT_REASON_MAX_LENGTH"
+								rows="3"
+								required
+							/>
+						</label>
+					</template>
+				</fieldset>
+			</template>
 			<label class="block space-y-1 text-sm font-medium">
 				<span>Об’єм</span>
 				<select
@@ -483,8 +690,11 @@ function submitDrink() {
 			<p class="text-sm text-muted-foreground">
 				До цілі зараховується лише вода. Чай, кава та інші напої залишаться у щоденнику, але не збільшать лічильник води.
 			</p>
+			<p v-if="drinkError" role="alert" class="text-sm text-destructive">
+				{{ drinkError }}
+			</p>
 			<Button type="submit" class="min-h-11 w-full" :disabled="pending">
-				{{ pending ? 'Зберігаю...' : `Записати ${drinkLabel}` }}
+				{{ pending ? 'Зберігаю...' : `Записати ${drinkKind === 'water' ? drinkLabel : drinkTypeName || selectedDrinkType?.name || drinkLabel}` }}
 			</Button>
 		</form>
 	</section>
