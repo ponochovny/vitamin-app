@@ -507,12 +507,17 @@ import type {
 } from '~/src/features/dashboard/drinkType'
 import type { ProductIrritant } from '~/src/entities/product/irritant'
 import {
+	normalizeMoodPeriodSettings,
+	type MoodPeriodKey,
+	type MoodPeriodSettings,
+} from '~/src/features/dashboard/moodPeriods'
+import {
 	REACTION_NOTE_MAX_LENGTH,
 	parseReactionDraft,
 	toLocalDatetimeInput,
 } from '~/src/features/dashboard/reaction'
 
-type PeriodKey = 'morning' | 'day' | 'evening'
+type PeriodKey = MoodPeriodKey
 
 interface FoodLog {
 	id: string
@@ -566,6 +571,7 @@ interface MoodEntry {
 	id: string
 	value: MoodValue
 	recorded_at: string
+	entry_date?: string | null
 }
 
 interface DrinkLog {
@@ -585,6 +591,7 @@ interface HistorySnapshot {
 	drinkLogs: DrinkLog[]
 	moodEntries: MoodEntry[]
 	reactions: ReactionObservation[]
+	moodPeriodSettings: MoodPeriodSettings
 }
 
 interface HistoryDay {
@@ -624,6 +631,7 @@ const foodLogs = shallowRef<FoodLog[]>([])
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const moodEntries = shallowRef<MoodEntry[]>([])
 const reactions = shallowRef<ReactionObservation[]>([])
+const moodPeriodSettings = shallowRef<MoodPeriodSettings>(normalizeMoodPeriodSettings(null))
 const expandedDates = shallowRef<Set<string>>(new Set())
 let historyLoadGeneration = 0
 const historyCache = useState<Record<string, HistorySnapshot>>(
@@ -635,11 +643,12 @@ const dashboardCache = useState<Record<string, unknown>>(
 	() => ({}),
 )
 
-const moodPeriods: Array<{ key: PeriodKey; label: string }> = [
-	{ key: 'morning', label: 'Ранок' },
-	{ key: 'day', label: 'День' },
-	{ key: 'evening', label: 'Вечір' },
-]
+const moodPeriods = computed(() =>
+	(['morning', 'day', 'evening'] as const).map((key) => ({
+		key,
+		label: moodPeriodSettings.value[key].label,
+	}))
+)
 
 const moodEmojis: Record<number, string> = {
 	1: '😞',
@@ -757,7 +766,7 @@ const days = computed<HistoryDay[]>(() => {
 	>()
 	for (const entry of moodEntries.value) {
 		const value = entry.value as MoodValue
-		const date = localDateFromTimestamp(entry.recorded_at)
+		const date = entry.entry_date ?? localDateFromTimestamp(entry.recorded_at)
 		if (!date || !value?.period) continue
 		const moods = moodGrouped.get(date) ?? {}
 		moods[value.period] = {
@@ -828,7 +837,7 @@ async function loadHistory(id: string, force = false) {
 	else loading.value = true
 	error.value = ''
 
-	const [foods, drinks, moods, reactionRows] = await Promise.all([
+	const [foods, drinks, moods, reactionRows, profile] = await Promise.all([
 		supabase
 			.from('logs')
 			.select(
@@ -843,7 +852,7 @@ async function loadHistory(id: string, force = false) {
 			.order('recorded_at', { ascending: false }),
 		supabase
 			.from('wellbeing_entries')
-			.select('id, kind, value, recorded_at')
+			.select('id, kind, value, recorded_at, entry_date')
 			.eq('user_id', id)
 			.eq('kind', 'mood')
 			.order('recorded_at', { ascending: false }),
@@ -852,11 +861,16 @@ async function loadHistory(id: string, force = false) {
 			.select('id, food_log_id, drink_id, observed_at, note')
 			.eq('user_id', id)
 			.order('observed_at', { ascending: false }),
+		supabase
+			.from('profiles')
+			.select('mood_periods')
+			.eq('id', id)
+			.maybeSingle(),
 	])
 
 	if (userId.value !== id || historyLoadGeneration !== loadGeneration) return
 
-	if (foods.error || drinks.error || moods.error || reactionRows.error) {
+	if (foods.error || drinks.error || moods.error || reactionRows.error || profile.error) {
 		error.value = 'Не вдалося завантажити журнал. Спробуйте оновити сторінку.'
 		clearHistoryRecords()
 		loading.value = false
@@ -871,6 +885,7 @@ async function loadHistory(id: string, force = false) {
 	}))
 	moodEntries.value = moods.data ?? []
 	reactions.value = (reactionRows.data ?? []) as ReactionObservation[]
+	moodPeriodSettings.value = normalizeMoodPeriodSettings(profile.data?.mood_periods)
 	historyCache.value = {
 		...historyCache.value,
 		[id]: {
@@ -879,6 +894,7 @@ async function loadHistory(id: string, force = false) {
 			drinkLogs: [...drinkLogs.value],
 			moodEntries: [...moodEntries.value],
 			reactions: [...reactions.value],
+			moodPeriodSettings: normalizeMoodPeriodSettings(moodPeriodSettings.value),
 		},
 	}
 	loading.value = false
@@ -890,6 +906,7 @@ function clearHistoryRecords() {
 	drinkLogs.value = []
 	moodEntries.value = []
 	reactions.value = []
+	moodPeriodSettings.value = normalizeMoodPeriodSettings(null)
 }
 
 function restoreHistorySnapshot(snapshot: HistorySnapshot) {
@@ -897,6 +914,7 @@ function restoreHistorySnapshot(snapshot: HistorySnapshot) {
 	drinkLogs.value = snapshot.drinkLogs
 	moodEntries.value = snapshot.moodEntries
 	reactions.value = snapshot.reactions
+	moodPeriodSettings.value = normalizeMoodPeriodSettings(snapshot.moodPeriodSettings)
 }
 
 function refreshHistory() {

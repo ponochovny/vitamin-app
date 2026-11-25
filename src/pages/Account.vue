@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { shallowRef } from 'vue'
 import MealReminderSettings from '~/src/features/reminders/MealReminderSettings.vue'
+import MoodPeriodSettings from '~/src/features/dashboard/MoodPeriodSettings.vue'
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
@@ -49,6 +50,12 @@ useSeoMeta({
 				v-if="user.id"
 				:key="user.id"
 				class="mt-5"
+				:user-id="user.id"
+			/>
+
+			<MoodPeriodSettings
+				v-if="user.id"
+				:key="`mood-periods-${user.id}`"
 				:user-id="user.id"
 			/>
 

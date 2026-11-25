@@ -90,6 +90,15 @@
 						}}». Вибір можна змінити пізніше.
 					</DialogDescription>
 				</DialogHeader>
+				<label v-if="selectedWellbeingPeriod" class="block space-y-1 text-sm font-medium">
+					<span>Дата позначки</span>
+					<Input
+						v-model="moodEntryDateDraft"
+						type="date"
+						required
+						:max="getLocalDate()"
+					/>
+				</label>
 				<div
 					v-if="selectedWellbeingPeriod"
 					class="grid grid-cols-5 gap-2"
@@ -847,6 +856,11 @@ import type {
 import { normalizeDrinkTypeName } from '~/src/features/dashboard/drinkType'
 import { parseProductIrritant } from '~/src/entities/product/irritant'
 import {
+	normalizeMoodPeriodSettings,
+	type MoodPeriodKey,
+	type MoodPeriodSettings,
+} from '~/src/features/dashboard/moodPeriods'
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -944,11 +958,12 @@ interface DashboardSnapshot {
 	drinkLogs: DrinkLog[]
 	drinkTypes: DrinkTypeProfile[]
 	wellbeingEntries: WellbeingEntry[]
+	moodPeriodSettings: MoodPeriodSettings
 	targets: DailyTargets
 	targetPreset: TargetPreset
 }
 
-type WellbeingPeriodKey = 'morning' | 'day' | 'evening'
+type WellbeingPeriodKey = MoodPeriodKey
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
 const supabase = useSupabaseClient()
@@ -976,6 +991,7 @@ const drinkInfoOpen = shallowRef(false)
 const selectedFoodRecord = shallowRef<DiaryRecord | null>(null)
 const selectedDrinkTypeInfo = shallowRef<DrinkTypeProfile | null>(null)
 const selectedMoodPeriod = shallowRef<WellbeingPeriodKey | null>(null)
+const moodEntryDateDraft = shallowRef(getLocalDate())
 const error = shallowRef('')
 const notice = shallowRef('')
 const products = shallowRef<Product[]>([])
@@ -985,6 +1001,7 @@ const selectedFoodSuggestionId = shallowRef<string | null>(null)
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const drinkTypes = shallowRef<DrinkTypeProfile[]>([])
 const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
+const moodPeriodSettings = shallowRef<MoodPeriodSettings>(normalizeMoodPeriodSettings(null))
 const wellbeingPending = shallowRef(false)
 const targets = shallowRef<DailyTargets>({ ...DEFAULT_TARGETS })
 const targetPreset = shallowRef<TargetPreset>('balanced')
@@ -1042,11 +1059,13 @@ const moodOptions = [
 	{ mood: 5, emoji: '😄', label: 'Чудово' },
 ] as const
 
-const wellbeingPeriods = [
-	{ key: 'morning', label: 'Ранок', question: 'Як прокинувся?' },
-	{ key: 'day', label: 'День', question: 'Як минає день?' },
-	{ key: 'evening', label: 'Вечір', question: 'Як пройшов день?' },
-] as const
+const wellbeingPeriods = computed(() =>
+	(['morning', 'day', 'evening'] as const).map((key) => ({
+		key,
+		label: moodPeriodSettings.value[key].label,
+		question: moodPeriodSettings.value[key].question,
+	}))
+)
 
 const guestGoalPreview = [
 	{ label: 'Калорії', value: '1 240 / 2 000 ккал', percent: 62 },
@@ -1138,7 +1157,7 @@ const recordsCountLabel = computed(() => {
 const completedWellbeingCount = computed(
 	() =>
 		wellbeingEntries.value.filter((entry) =>
-			wellbeingPeriods.some((period) => period.key === entry.value.period),
+			wellbeingPeriods.value.some((period) => period.key === entry.value.period),
 		).length,
 )
 const wellbeingByPeriod = computed(
@@ -1148,14 +1167,14 @@ const wellbeingByPeriod = computed(
 		) as Partial<Record<'morning' | 'day' | 'evening', WellbeingEntry>>,
 )
 const wellbeingCheckIns = computed(() =>
-	wellbeingPeriods.map((period) => {
+	wellbeingPeriods.value.map((period) => {
 		const moodValue = wellbeingByPeriod.value[period.key]?.value.mood
 		const mood = moodOptions.find((option) => option.mood === moodValue)
 		return { ...period, mood }
 	}),
 )
 const selectedWellbeingPeriod = computed(() =>
-	wellbeingPeriods.find((period) => period.key === selectedMoodPeriod.value),
+	wellbeingPeriods.value.find((period) => period.key === selectedMoodPeriod.value),
 )
 const todayLabel = new Intl.DateTimeFormat('uk-UA', {
 	timeZone: 'Europe/Kyiv',
@@ -1259,6 +1278,7 @@ function updateProductInfo(updatedProduct: FoodProductInfo) {
 
 function openMoodPicker(period: WellbeingPeriodKey) {
 	selectedMoodPeriod.value = period
+	moodEntryDateDraft.value = getLocalDate()
 	moodDialogOpen.value = true
 }
 
@@ -1335,6 +1355,7 @@ function restoreDashboardSnapshot(cached: DashboardSnapshot) {
 	drinkLogs.value = cached.drinkLogs
 	drinkTypes.value = cached.drinkTypes ?? []
 	wellbeingEntries.value = cached.wellbeingEntries ?? []
+	moodPeriodSettings.value = normalizeMoodPeriodSettings(cached.moodPeriodSettings)
 	targets.value = { ...cached.targets }
 	targetPreset.value = cached.targetPreset
 }
@@ -1350,6 +1371,7 @@ function cacheDashboardSnapshot(id: string) {
 			drinkLogs: [...drinkLogs.value],
 			drinkTypes: [...drinkTypes.value],
 			wellbeingEntries: [...wellbeingEntries.value],
+			moodPeriodSettings: normalizeMoodPeriodSettings(moodPeriodSettings.value),
 			targets: { ...targets.value },
 			targetPreset: targetPreset.value,
 		},
@@ -1472,17 +1494,12 @@ async function loadWellbeing(
 	generation = ++wellbeingLoadGeneration,
 ): Promise<string | null> {
 	const localDate = getLocalDate()
-	const dayStart = new Date(`${localDate}T00:00:00+02:00`)
-	const dayEnd = new Date(dayStart)
-	dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
-
 	const { data, error: requestError } = await supabase
 		.from('wellbeing_entries')
-		.select('id, kind, value, recorded_at')
+		.select('id, kind, value, recorded_at, entry_date')
 		.eq('user_id', id)
 		.eq('kind', 'mood')
-		.gte('recorded_at', dayStart.toISOString())
-		.lt('recorded_at', dayEnd.toISOString())
+		.eq('entry_date', localDate)
 
 	if (userId.value !== id || generation !== wellbeingLoadGeneration) return null
 	if (requestError) return 'Не вдалося завантажити самопочуття.'
@@ -1492,7 +1509,7 @@ async function loadWellbeing(
 			return { id: entry.id, value }
 		})
 		.filter((entry) =>
-			wellbeingPeriods.some((period) => period.key === entry.value.period),
+			wellbeingPeriods.value.some((period) => period.key === entry.value.period),
 		)
 	return null
 }
@@ -1500,7 +1517,7 @@ async function loadWellbeing(
 async function loadTargets(id: string): Promise<string | null> {
 	const { data, error: readError } = await supabase
 		.from('profiles')
-		.select('daily_targets, plan_preset')
+		.select('daily_targets, plan_preset, mood_periods')
 		.eq('id', id)
 		.maybeSingle()
 	if (readError) return 'Не вдалося завантажити денні цілі.'
@@ -1510,14 +1527,17 @@ async function loadTargets(id: string): Promise<string | null> {
 			id,
 			daily_targets: DEFAULT_TARGETS,
 			plan_preset: 'balanced',
+			mood_periods: normalizeMoodPeriodSettings(null),
 		})
 		if (insertError) return 'Не вдалося створити налаштування денних цілей.'
 		targets.value = { ...DEFAULT_TARGETS }
 		targetPreset.value = 'balanced'
+		moodPeriodSettings.value = normalizeMoodPeriodSettings(null)
 		return null
 	}
 
 	targets.value = normalizeTargets(data.daily_targets)
+	moodPeriodSettings.value = normalizeMoodPeriodSettings(data.mood_periods)
 	targetPreset.value = isTargetPreset(data.plan_preset)
 		? data.plan_preset
 		: 'custom'
@@ -1886,21 +1906,48 @@ async function saveMood(
 ) {
 	const id = userId.value
 	if (!id || wellbeingPending.value) return
+	const entryDate = moodEntryDateDraft.value
+	if (!entryDate || entryDate > getLocalDate()) {
+		error.value = 'Оберіть дату сьогодні або раніше.'
+		return
+	}
 
 	wellbeingPending.value = true
 	error.value = ''
 	notice.value = ''
-	const existing = wellbeingByPeriod.value[period]
+	const { data: existingRows, error: existingError } = entryDate === getLocalDate()
+		? await supabase
+				.from('wellbeing_entries')
+				.select('id, value')
+				.eq('user_id', id)
+				.eq('kind', 'mood')
+				.eq('entry_date', entryDate)
+				.contains('value', { period })
+				.maybeSingle()
+		: await supabase
+				.from('wellbeing_entries')
+				.select('id, value')
+				.eq('user_id', id)
+				.eq('kind', 'mood')
+				.eq('entry_date', entryDate)
+				.contains('value', { period })
+				.maybeSingle()
+	if (existingError) {
+		wellbeingPending.value = false
+		error.value = 'Не вдалося перевірити позначку за цією датою.'
+		return
+	}
+	const existing = existingRows
 	const payload = {
 		user_id: id,
 		kind: 'mood',
-		entry_date: getLocalDate(),
+		entry_date: entryDate,
 		value: {
 			period,
 			mood: option.mood,
 			label: option.label,
 		},
-		recorded_at: new Date().toISOString(),
+		recorded_at: new Date(`${entryDate}T12:00:00+02:00`).toISOString(),
 	}
 
 	const request = existing
@@ -1929,12 +1976,14 @@ async function saveMood(
 		id: savedEntry.id,
 		value: savedEntry.value as WellbeingEntry['value'],
 	}
-	wellbeingEntries.value = [
-		...wellbeingEntries.value.filter(
-			(entry) => entry.value.period !== period,
-		),
-		savedMood,
-	]
+	if (entryDate === getLocalDate()) {
+		wellbeingEntries.value = [
+			...wellbeingEntries.value.filter(
+				(entry) => entry.value.period !== period,
+			),
+			savedMood,
+		]
+	}
 	invalidateHistoryCache(id)
 	moodDialogOpen.value = false
 	selectedMoodPeriod.value = null
@@ -1948,7 +1997,7 @@ async function saveMood(
 	if (userId.value === id && generation === wellbeingLoadGeneration) {
 		cacheDashboardSnapshot(id)
 	}
-	notice.value = `${wellbeingPeriods.find((item) => item.key === period)?.label}: обрано «${option.label}».`
+	notice.value = `${wellbeingPeriods.value.find((item) => item.key === period)?.label}: обрано «${option.label}».`
 }
 
 async function saveTargets(payload: {
