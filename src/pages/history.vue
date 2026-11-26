@@ -440,6 +440,16 @@
 						<p class="text-sm font-bold">Самопочуття</p>
 						<div class="mt-3 space-y-2">
 							<div
+								v-if="day.sleep"
+								class="flex items-center justify-between rounded-xl border border-border/80 px-3 py-2.5"
+							>
+								<span class="text-sm text-muted-foreground">Сон</span>
+								<span class="text-sm font-bold">
+									{{ day.sleep.value.bedtime }}–{{ day.sleep.value.wakeTime }}
+									· {{ day.sleep.value.label }}
+								</span>
+							</div>
+							<div
 								v-for="period in moodPeriods"
 								:key="period.key"
 								class="flex items-center justify-between rounded-xl border px-3 py-2.5"
@@ -512,6 +522,10 @@ import {
 	type MoodPeriodSettings,
 } from '~/src/features/dashboard/moodPeriods'
 import {
+	normalizeSleepEntryValue,
+	type SleepEntryValue,
+} from '~/src/features/dashboard/sleep'
+import {
 	REACTION_NOTE_MAX_LENGTH,
 	parseReactionDraft,
 	toLocalDatetimeInput,
@@ -574,6 +588,13 @@ interface MoodEntry {
 	entry_date?: string | null
 }
 
+interface SleepEntry {
+	id: string
+	value: SleepEntryValue
+	recorded_at: string
+	entry_date?: string | null
+}
+
 interface DrinkLog {
 	id: string
 	kind: DrinkKind
@@ -590,6 +611,7 @@ interface HistorySnapshot {
 	foodLogs: FoodLog[]
 	drinkLogs: DrinkLog[]
 	moodEntries: MoodEntry[]
+	sleepEntries: SleepEntry[]
 	reactions: ReactionObservation[]
 	moodPeriodSettings: MoodPeriodSettings
 }
@@ -602,6 +624,7 @@ interface HistoryDay {
 	moods: Partial<
 		Record<PeriodKey, { emoji: string; label: string; recordedAt: string }>
 	>
+	sleep: { value: SleepEntryValue } | null
 }
 
 const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000
@@ -630,6 +653,7 @@ const editError = shallowRef('')
 const foodLogs = shallowRef<FoodLog[]>([])
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const moodEntries = shallowRef<MoodEntry[]>([])
+const sleepEntries = shallowRef<SleepEntry[]>([])
 const reactions = shallowRef<ReactionObservation[]>([])
 const moodPeriodSettings = shallowRef<MoodPeriodSettings>(normalizeMoodPeriodSettings(null))
 const expandedDates = shallowRef<Set<string>>(new Set())
@@ -777,7 +801,15 @@ const days = computed<HistoryDay[]>(() => {
 		moodGrouped.set(date, moods)
 	}
 
-	const dates = new Set([...grouped.keys(), ...moodGrouped.keys()])
+	const sleepGrouped = new Map<string, { value: SleepEntryValue }>()
+	for (const entry of sleepEntries.value) {
+		const value = normalizeSleepEntryValue(entry.value)
+		const date = entry.entry_date ?? localDateFromTimestamp(entry.recorded_at)
+		if (!value || !date) continue
+		sleepGrouped.set(date, { value })
+	}
+
+	const dates = new Set([...grouped.keys(), ...moodGrouped.keys(), ...sleepGrouped.keys()])
 
 	return [...dates]
 		.sort((a, b) => b.localeCompare(a))
@@ -789,6 +821,7 @@ const days = computed<HistoryDay[]>(() => {
 				b.createdAt.localeCompare(a.createdAt),
 			),
 			moods: moodGrouped.get(date) ?? {},
+			sleep: sleepGrouped.get(date) ?? null,
 		}))
 })
 
@@ -854,7 +887,7 @@ async function loadHistory(id: string, force = false) {
 			.from('wellbeing_entries')
 			.select('id, kind, value, recorded_at, entry_date')
 			.eq('user_id', id)
-			.eq('kind', 'mood')
+			.in('kind', ['mood', 'sleep'])
 			.order('recorded_at', { ascending: false }),
 		supabase
 			.from('reaction_observations')
@@ -883,7 +916,13 @@ async function loadHistory(id: string, force = false) {
 		...drink,
 		entry_date: drink.entry_date ?? null,
 	}))
-	moodEntries.value = moods.data ?? []
+	const wellbeingRows = moods.data ?? []
+	moodEntries.value = wellbeingRows
+		.filter((entry) => entry.kind === 'mood')
+		.map((entry) => entry as unknown as MoodEntry)
+	sleepEntries.value = wellbeingRows
+		.filter((entry) => entry.kind === 'sleep')
+		.map((entry) => entry as unknown as SleepEntry)
 	reactions.value = (reactionRows.data ?? []) as ReactionObservation[]
 	moodPeriodSettings.value = normalizeMoodPeriodSettings(profile.data?.mood_periods)
 	historyCache.value = {
@@ -893,6 +932,7 @@ async function loadHistory(id: string, force = false) {
 			foodLogs: [...foodLogs.value],
 			drinkLogs: [...drinkLogs.value],
 			moodEntries: [...moodEntries.value],
+			sleepEntries: [...sleepEntries.value],
 			reactions: [...reactions.value],
 			moodPeriodSettings: normalizeMoodPeriodSettings(moodPeriodSettings.value),
 		},
@@ -905,6 +945,7 @@ function clearHistoryRecords() {
 	foodLogs.value = []
 	drinkLogs.value = []
 	moodEntries.value = []
+	sleepEntries.value = []
 	reactions.value = []
 	moodPeriodSettings.value = normalizeMoodPeriodSettings(null)
 }
@@ -913,6 +954,7 @@ function restoreHistorySnapshot(snapshot: HistorySnapshot) {
 	foodLogs.value = snapshot.foodLogs
 	drinkLogs.value = snapshot.drinkLogs
 	moodEntries.value = snapshot.moodEntries
+	sleepEntries.value = snapshot.sleepEntries ?? []
 	reactions.value = snapshot.reactions
 	moodPeriodSettings.value = normalizeMoodPeriodSettings(snapshot.moodPeriodSettings)
 }

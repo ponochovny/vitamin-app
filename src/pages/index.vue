@@ -558,6 +558,13 @@
 							</button>
 						</div>
 					</article>
+					<SleepCheckIn
+						v-if="userId"
+						:user-id="userId"
+						:entry="sleepEntry"
+						class="rounded-2xl"
+						@saved="saveSleepEntry"
+					/>
 				</div>
 			</section>
 
@@ -838,6 +845,11 @@ import DailyTargetSettings from '~/src/features/dashboard/DailyTargetSettings.vu
 import QuickLogForm from '~/src/features/dashboard/QuickLogForm.vue'
 import ProductInfoDialog from '~/src/features/dashboard/ProductInfoDialog.vue'
 import DrinkIrritantDialog from '~/src/features/dashboard/DrinkIrritantDialog.vue'
+import SleepCheckIn from '~/src/features/dashboard/SleepCheckIn.vue'
+import {
+	normalizeSleepEntryValue,
+	type SleepEntryValue,
+} from '~/src/features/dashboard/sleep'
 import {
 	FOOD_MACRO_KEYS,
 	getFoodSuggestions,
@@ -958,6 +970,7 @@ interface DashboardSnapshot {
 	drinkLogs: DrinkLog[]
 	drinkTypes: DrinkTypeProfile[]
 	wellbeingEntries: WellbeingEntry[]
+	sleepEntry: { id: string; value: SleepEntryValue } | null
 	moodPeriodSettings: MoodPeriodSettings
 	targets: DailyTargets
 	targetPreset: TargetPreset
@@ -1001,6 +1014,7 @@ const selectedFoodSuggestionId = shallowRef<string | null>(null)
 const drinkLogs = shallowRef<DrinkLog[]>([])
 const drinkTypes = shallowRef<DrinkTypeProfile[]>([])
 const wellbeingEntries = shallowRef<WellbeingEntry[]>([])
+const sleepEntry = shallowRef<{ id: string; value: SleepEntryValue } | null>(null)
 const moodPeriodSettings = shallowRef<MoodPeriodSettings>(normalizeMoodPeriodSettings(null))
 const wellbeingPending = shallowRef(false)
 const targets = shallowRef<DailyTargets>({ ...DEFAULT_TARGETS })
@@ -1282,6 +1296,17 @@ function openMoodPicker(period: WellbeingPeriodKey) {
 	moodDialogOpen.value = true
 }
 
+function saveSleepEntry(entry: { id: string; value: SleepEntryValue }) {
+	sleepEntry.value = entry
+	const id = userId.value
+	if (id) {
+		invalidateHistoryCache(id)
+		invalidateDashboardCache(id)
+		cacheDashboardSnapshot(id)
+	}
+	notice.value = `Сон: ${entry.value.label.toLowerCase()}, ${entry.value.bedtime}–${entry.value.wakeTime}.`
+}
+
 function saveSelectedMood(option: (typeof moodOptions)[number]) {
 	const period = selectedMoodPeriod.value
 	if (!period) return
@@ -1355,6 +1380,7 @@ function restoreDashboardSnapshot(cached: DashboardSnapshot) {
 	drinkLogs.value = cached.drinkLogs
 	drinkTypes.value = cached.drinkTypes ?? []
 	wellbeingEntries.value = cached.wellbeingEntries ?? []
+	sleepEntry.value = cached.sleepEntry ?? null
 	moodPeriodSettings.value = normalizeMoodPeriodSettings(cached.moodPeriodSettings)
 	targets.value = { ...cached.targets }
 	targetPreset.value = cached.targetPreset
@@ -1371,6 +1397,7 @@ function cacheDashboardSnapshot(id: string) {
 			drinkLogs: [...drinkLogs.value],
 			drinkTypes: [...drinkTypes.value],
 			wellbeingEntries: [...wellbeingEntries.value],
+			sleepEntry: sleepEntry.value,
 			moodPeriodSettings: normalizeMoodPeriodSettings(moodPeriodSettings.value),
 			targets: { ...targets.value },
 			targetPreset: targetPreset.value,
@@ -1494,16 +1521,25 @@ async function loadWellbeing(
 	generation = ++wellbeingLoadGeneration,
 ): Promise<string | null> {
 	const localDate = getLocalDate()
-	const { data, error: requestError } = await supabase
-		.from('wellbeing_entries')
-		.select('id, kind, value, recorded_at, entry_date')
-		.eq('user_id', id)
-		.eq('kind', 'mood')
-		.eq('entry_date', localDate)
+	const [moods, sleep] = await Promise.all([
+		supabase
+			.from('wellbeing_entries')
+			.select('id, kind, value, recorded_at, entry_date')
+			.eq('user_id', id)
+			.eq('kind', 'mood')
+			.eq('entry_date', localDate),
+		supabase
+			.from('wellbeing_entries')
+			.select('id, kind, value, recorded_at, entry_date')
+			.eq('user_id', id)
+			.eq('kind', 'sleep')
+			.eq('entry_date', localDate)
+			.maybeSingle(),
+	])
 
 	if (userId.value !== id || generation !== wellbeingLoadGeneration) return null
-	if (requestError) return 'Не вдалося завантажити самопочуття.'
-	wellbeingEntries.value = (data ?? [])
+	if (moods.error || sleep.error) return 'Не вдалося завантажити самопочуття.'
+	wellbeingEntries.value = (moods.data ?? [])
 		.map((entry) => {
 			const value = entry.value as WellbeingEntry['value']
 			return { id: entry.id, value }
@@ -1511,6 +1547,10 @@ async function loadWellbeing(
 		.filter((entry) =>
 			wellbeingPeriods.value.some((period) => period.key === entry.value.period),
 		)
+	const sleepValue = normalizeSleepEntryValue(sleep.data?.value)
+	sleepEntry.value = sleep.data && sleepValue
+		? { id: sleep.data.id, value: sleepValue }
+		: null
 	return null
 }
 
